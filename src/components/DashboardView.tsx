@@ -21,7 +21,9 @@ import {
   Table,
   HelpCircle,
   UserCheck,
+  Gamepad2,
 } from 'lucide-react';
+
 import { useApp } from '../context/AppContext';
 
 export const DashboardView: React.FC = () => {
@@ -569,6 +571,17 @@ export const DashboardView: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setActiveTab('games')}
+              className="flex items-center gap-2 p-2.5 rounded-lg border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-purple-900 font-semibold text-xs text-left transition-all group"
+            >
+              <div className="w-6 h-6 rounded bg-purple-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Gamepad2 className="w-3.5 h-3.5" />
+              </div>
+              <span>Ngân hàng Game</span>
+            </button>
+
+
+            <button
               onClick={() => setActiveTab('attendance')}
               className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs text-left transition-all group col-span-2"
             >
@@ -581,6 +594,7 @@ export const DashboardView: React.FC = () => {
           </div>
         </div>
       </div>
+
 
       {/* 5. Bottom Row: AI Assistant Bar, Progress Line Chart, Documents */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">

@@ -11,6 +11,7 @@ import {
   AppNotification,
   ExamSubmission,
   AttendanceSession,
+  GameItem,
 } from '../types';
 import {
   INITIAL_CLASSES,
@@ -23,7 +24,9 @@ import {
   INITIAL_TEACHER_PROFILE,
   INITIAL_NOTIFICATIONS,
   INITIAL_ATTENDANCE_SESSIONS,
+  INITIAL_GAMES,
 } from '../data/mockData';
+
 
 export type NavTab =
   | 'dashboard'
@@ -33,9 +36,11 @@ export type NavTab =
   | 'exams'
   | 'grades'
   | 'analytics'
+  | 'games'
   | 'ai'
   | 'docs'
   | 'settings';
+
 
 interface AppContextType {
   activeTab: NavTab;
@@ -98,13 +103,23 @@ interface AppContextType {
   importStudentsList: (newStudents: Partial<Student>[]) => void;
 
   addQuestion: (q: Omit<Question, 'id' | 'createdDate'>) => void;
+  addQuestionsBatch: (newQuestions: Omit<Question, 'id' | 'createdDate'>[]) => Question[];
   updateQuestion: (id: string, updates: Partial<Question>) => void;
   deleteQuestion: (id: string) => void;
 
   addExam: (e: Omit<Exam, 'id' | 'createdDate' | 'status'>) => void;
   updateExam: (id: string, updates: Partial<Exam>) => void;
 
+  addDocument: (doc: Omit<DocItem, 'id' | 'updatedDate'>) => void;
+  deleteDocument: (id: string) => void;
+
+  games: GameItem[];
+  addGame: (game: Omit<GameItem, 'id' | 'playsCount' | 'rating'>) => void;
+  deleteGame: (gameId: string) => void;
+  updateGame: (gameId: string, updates: Partial<GameItem>) => void;
+
   addAssignment: (a: Omit<Assignment, 'id' | 'assignedDate' | 'submittedCount'>) => void;
+
 
   updateGrade: (
     studentId: string,
@@ -128,7 +143,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'thang_math_edtech_state_v1';
+const STORAGE_KEY = 'thang_math_edtech_state_v2';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
@@ -167,7 +182,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_ASSIGNMENTS;
   });
 
-  const [documents] = useState<DocItem[]>(INITIAL_DOCUMENTS);
+  const [documents, setDocuments] = useState<DocItem[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_documents`);
+    return saved ? JSON.parse(saved) : INITIAL_DOCUMENTS;
+  });
 
   const [teacherProfile, setTeacherProfile] = useState<TeacherProfile>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_profile`);
@@ -187,6 +205,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_attendance`);
     return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE_SESSIONS;
+  });
+
+  const [games, setGames] = useState<GameItem[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_games`);
+    return saved ? JSON.parse(saved) : INITIAL_GAMES;
   });
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -231,6 +254,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [assignments]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_games`, JSON.stringify(games));
+  }, [games]);
+
+  useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_profile`, JSON.stringify(teacherProfile));
   }, [teacherProfile]);
 
@@ -245,6 +272,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_attendance`, JSON.stringify(attendanceSessions));
   }, [attendanceSessions]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_documents`, JSON.stringify(documents));
+  }, [documents]);
+
 
   // Recalculate student counts and class stats
   const addClass = (cls: Omit<ClassRoom, 'id' | 'avgScore' | 'totalStudents'>) => {
@@ -370,6 +402,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setQuestions((prev) => [newQ, ...prev]);
   };
 
+  const addQuestionsBatch = (newQs: Omit<Question, 'id' | 'createdDate'>[]) => {
+    const timestamp = Date.now();
+    const createdDate = new Date().toLocaleDateString('vi-VN');
+    const createdList: Question[] = newQs.map((q, idx) => ({
+      ...q,
+      id: `q_${timestamp}_${idx}`,
+      createdDate,
+    }));
+    setQuestions((prev) => [...createdList, ...prev]);
+    return createdList;
+  };
+
   const updateQuestion = (id: string, updates: Partial<Question>) => {
     setQuestions((prev) =>
       prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
@@ -397,7 +441,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const addDocument = (doc: Omit<DocItem, 'id' | 'updatedDate'>) => {
+    const newDoc: DocItem = {
+      ...doc,
+      id: `doc_${Date.now()}`,
+      updatedDate: new Date().toLocaleDateString('vi-VN'),
+    };
+    setDocuments((prev) => [newDoc, ...prev]);
+  };
+
+  const deleteDocument = (id: string) => {
+    setDocuments((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const addGame = (game: Omit<GameItem, 'id' | 'playsCount' | 'rating'>) => {
+    const newGame: GameItem = {
+      ...game,
+      id: `game_custom_${Date.now()}`,
+      playsCount: 0,
+      rating: 5.0,
+      createdDate: new Date().toLocaleDateString('vi-VN'),
+      isCustomUpload: true,
+      author: game.author || 'Thầy Bùi Ngọc Thắng',
+    };
+    setGames((prev) => [newGame, ...prev]);
+  };
+
+  const deleteGame = (gameId: string) => {
+    setGames((prev) => prev.filter((g) => g.id !== gameId));
+  };
+
+  const updateGame = (gameId: string, updates: Partial<GameItem>) => {
+    setGames((prev) => prev.map((g) => (g.id === gameId ? { ...g, ...updates } : g)));
+  };
+
   const addAssignment = (a: Omit<Assignment, 'id' | 'assignedDate' | 'submittedCount'>) => {
+
     const newA: Assignment = {
       ...a,
       id: `a_${Date.now()}`,
@@ -519,6 +598,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGradeRecords(INITIAL_GRADE_RECORDS);
     setAssignments(INITIAL_ASSIGNMENTS);
     setAttendanceSessions(INITIAL_ATTENDANCE_SESSIONS);
+    setGames(INITIAL_GAMES);
     setTeacherProfile(INITIAL_TEACHER_PROFILE);
     setNotifications(INITIAL_NOTIFICATIONS);
     setSubmissions([]);
@@ -533,6 +613,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGradeRecords([]);
     setAssignments([]);
     setAttendanceSessions([]);
+    setGames([]);
     setSubmissions([]);
   };
 
@@ -548,6 +629,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       gradeRecords,
       assignments,
       attendanceSessions,
+      games,
       teacherProfile,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -571,6 +653,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.gradeRecords) setGradeRecords(data.gradeRecords);
       if (data.assignments) setAssignments(data.assignments);
       if (data.attendanceSessions) setAttendanceSessions(data.attendanceSessions);
+      if (data.games) setGames(data.games);
       if (data.teacherProfile) setTeacherProfile(data.teacherProfile);
       return true;
     } catch {
@@ -587,6 +670,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         students,
         questions,
         exams,
+        games,
+        addGame,
+        deleteGame,
+        updateGame,
         gradeRecords,
         assignments,
         attendanceSessions,
@@ -629,10 +716,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteStudent,
         importStudentsList,
         addQuestion,
+        addQuestionsBatch,
         updateQuestion,
         deleteQuestion,
         addExam,
         updateExam,
+        addDocument,
+        deleteDocument,
         addAssignment,
         updateGrade,
         updateTeacherRemarks,
@@ -647,6 +737,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         importDatabaseJSON,
       }}
     >
+
       {children}
     </AppContext.Provider>
   );

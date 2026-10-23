@@ -9,6 +9,7 @@ import { QuestionBankView } from './components/QuestionBankView';
 import { OnlineExamView } from './components/OnlineExamView';
 import { GradebookView } from './components/GradebookView';
 import { AnalyticsView } from './components/AnalyticsView';
+import { GameBankView } from './components/GameBankView';
 import { AIAssistantView } from './components/AIAssistantView';
 import { DocumentsView } from './components/DocumentsView';
 import { SettingsView } from './components/SettingsView';
@@ -18,7 +19,7 @@ const MainLayout: React.FC = () => {
   const { activeTab, currentRole } = useApp();
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F8FC] text-[#12345A] font-serif selection:bg-[#0878D1] selection:text-white">
+    <div className="min-h-screen flex flex-col bg-[#F4F8FC] text-[#12345A] selection:bg-[#0878D1] selection:text-white">
       {/* Top Header */}
       <Header />
 
@@ -36,11 +37,13 @@ const MainLayout: React.FC = () => {
           {activeTab === 'exams' && <OnlineExamView />}
           {activeTab === 'grades' && <GradebookView />}
           {activeTab === 'analytics' && <AnalyticsView />}
+          {activeTab === 'games' && <GameBankView />}
           {activeTab === 'ai' && <AIAssistantView />}
           {activeTab === 'docs' && <DocumentsView />}
           {activeTab === 'settings' && <SettingsView />}
         </main>
       </div>
+
 
       {/* Official Footer matching specifications and screenshot */}
       <footer className="bg-white border-t border-blue-100 py-3.5 px-6 text-xs text-[#64748B] shadow-inner mt-auto">

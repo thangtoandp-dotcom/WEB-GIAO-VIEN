@@ -16,11 +16,13 @@ import {
   GraduationCap,
   Calendar,
   Send,
+  Upload,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
 import { Exam, Question, ExamSubmission } from '../types';
 import { MathRenderer } from './MathRenderer';
+import { UploadExamModal } from './UploadExamModal';
 
 export const OnlineExamView: React.FC = () => {
   const {
@@ -39,6 +41,7 @@ export const OnlineExamView: React.FC = () => {
 
   // Selected Exam for taking test
   const [takingExam, setTakingExam] = useState<Exam | null>(null);
+  const [isUploadExamOpen, setIsUploadExamOpen] = useState(false);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
   const [userAnswers, setUserAnswers] = useState<{ [qId: string]: string }>({});
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(45 * 60);
@@ -185,13 +188,23 @@ export const OnlineExamView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreateExamOpen(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#0878D1] hover:bg-[#064A87] text-white shadow-sm transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Tạo bài kiểm tra mới</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsUploadExamOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all hover:scale-105"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Tải Đề thi lên</span>
+          </button>
+
+          <button
+            onClick={() => setIsCreateExamOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#0878D1] hover:bg-[#064A87] text-white shadow-sm transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Tạo bài kiểm tra mới</span>
+          </button>
+        </div>
       </div>
 
       {/* ONLINE TEST SIMULATOR (If Taking Exam is active) */}
@@ -588,6 +601,12 @@ export const OnlineExamView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Upload Exam Modal */}
+      <UploadExamModal
+        isOpen={isUploadExamOpen}
+        onClose={() => setIsUploadExamOpen(false)}
+      />
     </div>
   );
 };

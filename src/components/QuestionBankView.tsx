@@ -15,10 +15,12 @@ import {
   FileText,
   Printer,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Question, GradeLevel, CognitiveLevel, QuestionType } from '../types';
 import { MathRenderer } from './MathRenderer';
+import { UploadExamModal } from './UploadExamModal';
 
 export const QuestionBankView: React.FC = () => {
   const { questions, addQuestion, updateQuestion, deleteQuestion, setActiveTab, setAiInitialPrompt } = useApp();
@@ -31,6 +33,7 @@ export const QuestionBankView: React.FC = () => {
 
   // Question Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUploadExamOpen, setIsUploadExamOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
 
   // Form Fields
@@ -216,6 +219,14 @@ export const QuestionBankView: React.FC = () => {
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Soạn câu hỏi bằng AI</span>
+          </button>
+
+          <button
+            onClick={() => setIsUploadExamOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all hover:scale-105"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Tải Đề thi & Bài tập lên</span>
           </button>
 
           <button
@@ -732,6 +743,12 @@ export const QuestionBankView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Upload Exam & Questions Modal with 3 integrated methods */}
+      <UploadExamModal
+        isOpen={isUploadExamOpen}
+        onClose={() => setIsUploadExamOpen(false)}
+      />
     </div>
   );
 };

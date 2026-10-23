@@ -130,7 +130,7 @@ export interface Assignment {
 export interface DocItem {
   id: string;
   title: string;
-  category: 'sgk' | 'reference' | 'matrix' | 'guide';
+  category: 'sgk' | 'reference' | 'matrix' | 'guide' | 'exam';
   categoryName: string;
   fileType: 'PDF' | 'DOCX' | 'XLSX';
   size: string;
@@ -138,6 +138,7 @@ export interface DocItem {
   updatedDate: string;
   downloadUrl?: string;
   description: string;
+  fileContent?: string;
 }
 
 export interface TeacherProfile {
@@ -186,3 +187,52 @@ export interface AttendanceSession {
   note?: string;
   createdAt: string;
 }
+
+export type GameCategory = 'learning' | 'entertainment';
+
+export type GameSourceType = 'built_in' | 'embed_url' | 'html_content' | 'quiz_game';
+
+export interface GameQuizQuestion {
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation?: string;
+}
+
+export interface GameItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  category: GameCategory;
+  categoryName: string;
+  grade: 'all' | GradeLevel;
+  difficulty: 'Dễ' | 'Trung bình' | 'Thử thách';
+  estimatedMinutes: number;
+  playsCount: number;
+  rating: number;
+  thumbnailColor: string;
+  tags: string[];
+  badge?: string;
+  gameSourceType?: GameSourceType;
+  embedUrl?: string;
+  htmlContent?: string;
+  quizQuestions?: GameQuizQuestion[];
+  isCustomUpload?: boolean;
+  author?: string;
+  createdDate?: string;
+}
+
+
+export interface GameLeaderboardEntry {
+  id: string;
+  studentName: string;
+  className: string;
+  gameId: string;
+  gameTitle: string;
+  score: number;
+  unit: string;
+  date: string;
+  badge?: string;
+}
+

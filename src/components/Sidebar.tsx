@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   TrendingUp,
   BarChart3,
+  Gamepad2,
   Bot,
   BookMarked,
   Settings,
@@ -27,10 +28,12 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'exams', label: 'Kiểm tra trực tuyến', icon: ClipboardCheck },
   { id: 'grades', label: 'Kết quả học tập', icon: TrendingUp },
   { id: 'analytics', label: 'Phân tích & Thống kê', icon: BarChart3 },
+  { id: 'games', label: 'Ngân hàng Game', icon: Gamepad2 },
   { id: 'ai', label: 'Trợ lý AI môn Toán', icon: Bot },
   { id: 'docs', label: 'Tài liệu & Hỗ trợ', icon: BookMarked },
   { id: 'settings', label: 'Cài đặt', icon: Settings },
 ];
+
 
 export const Sidebar: React.FC = () => {
   const { activeTab, setActiveTab } = useApp();

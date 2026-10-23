@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DocItem } from '../types';
+import { UploadExamModal } from './UploadExamModal';
 
 export const DocumentsView: React.FC = () => {
   const { documents } = useApp();
@@ -21,6 +22,7 @@ export const DocumentsView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [viewingDoc, setViewingDoc] = useState<DocItem | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   const filteredDocs = documents.filter((d) => {
     const matchSearch =
@@ -59,7 +61,7 @@ export const DocumentsView: React.FC = () => {
         </div>
 
         <button
-          onClick={() => alert('Chức năng tải lên tài liệu mới của giáo viên đã sẵn sàng.')}
+          onClick={() => setIsUploadModalOpen(true)}
           className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#0878D1] hover:bg-[#064A87] text-white shadow-sm transition-colors"
         >
           <Upload className="w-3.5 h-3.5" />
@@ -266,6 +268,12 @@ export const DocumentsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Upload Exam & Documents Modal */}
+      <UploadExamModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+      />
     </div>
   );
 };
