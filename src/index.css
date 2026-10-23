@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@layer base {
+  *,
+  *::before,
+  *::after,
+  html,
+  body,
+  input,
+  button,
+  select,
+  textarea,
+  table,
+  th,
+  td,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  span {
+    font-family: "Times New Roman", Times, Georgia, serif !important;
+  }
+
+  body {
+    background-color: #F4F8FC;
+    color: #12345A;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Custom scrollbar for dense tables and dashboard */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #EAF5FF;
+}
+::-webkit-scrollbar-thumb {
+  background: #A0C4E2;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0878D1;
+}
+
+/* Print styling for test papers and transcripts */
+@media print {
+  aside,
+  header,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  .print-page {
+    page-break-after: always;
+  }
+}

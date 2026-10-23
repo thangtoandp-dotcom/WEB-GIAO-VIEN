@@ -1,0 +1,6 @@
+{
+  "name": "Toán học cùng thầy Thắng",
+  "description": "Hệ thống quản lý và hỗ trợ giảng dạy môn Toán - Thầy Bùi Ngọc Thắng, Trường THPT Đan Phượng",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
