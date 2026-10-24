@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { ClassStudentView } from './components/ClassStudentView';
+import { ClassActivitiesView } from './components/ClassActivitiesView';
 import { AttendanceView } from './components/AttendanceView';
 import { QuestionBankView } from './components/QuestionBankView';
 import { OnlineExamView } from './components/OnlineExamView';
@@ -13,10 +14,15 @@ import { GameBankView } from './components/GameBankView';
 import { AIAssistantView } from './components/AIAssistantView';
 import { DocumentsView } from './components/DocumentsView';
 import { SettingsView } from './components/SettingsView';
+import { AuthLoginView } from './components/AuthLoginView';
 import { GraduationCap } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { activeTab, currentRole } = useApp();
+  const { activeTab, currentRole, isAuthenticated } = useApp();
+
+  if (!isAuthenticated) {
+    return <AuthLoginView />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F4F8FC] text-[#12345A] selection:bg-[#0878D1] selection:text-white">
@@ -32,6 +38,7 @@ const MainLayout: React.FC = () => {
         <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'classes' && <ClassStudentView />}
+          {activeTab === 'activities' && <ClassActivitiesView />}
           {activeTab === 'attendance' && <AttendanceView />}
           {activeTab === 'bank' && <QuestionBankView />}
           {activeTab === 'exams' && <OnlineExamView />}

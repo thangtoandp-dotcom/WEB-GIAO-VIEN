@@ -236,3 +236,34 @@ export interface GameLeaderboardEntry {
   badge?: string;
 }
 
+export type ActivityCategory =
+  | 'stem'
+  | 'academic'
+  | 'presentation'
+  | 'extracurricular'
+  | 'competition';
+
+export interface ClassActivity {
+  id: string;
+  title: string;
+  classId: string;
+  className: string;
+  grade: GradeLevel;
+  schoolYear: string;
+  semester: string;
+  category: ActivityCategory;
+  categoryLabel: string;
+  date: string;
+  description: string;
+  teacherRemarks?: string;
+  images: string[];
+  videoUrl?: string; // YouTube URL, MP4 link, or Drive preview
+  videoTitle?: string;
+  featuredStudents?: string[]; // Commended students
+  likesCount: number;
+  isPinned?: boolean;
+  author: string;
+  createdDate: string;
+}
+
+

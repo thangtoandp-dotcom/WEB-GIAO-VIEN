@@ -11,6 +11,7 @@ import {
   Bot,
   BookMarked,
   Settings,
+  Sparkles,
 } from 'lucide-react';
 import { useApp, NavTab } from '../context/AppContext';
 
@@ -23,6 +24,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Trang chủ', icon: Home },
   { id: 'classes', label: 'Quản lý lớp học & học sinh', icon: Users },
+  { id: 'activities', label: 'Hoạt động nổi bật các lớp', icon: Sparkles },
   { id: 'attendance', label: 'Điểm danh & Chuyên cần', icon: UserCheck },
   { id: 'bank', label: 'Ngân hàng đề & Bài tập', icon: FileQuestion },
   { id: 'exams', label: 'Kiểm tra trực tuyến', icon: ClipboardCheck },

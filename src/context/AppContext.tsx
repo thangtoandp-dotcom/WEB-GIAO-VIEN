@@ -12,6 +12,7 @@ import {
   ExamSubmission,
   AttendanceSession,
   GameItem,
+  ClassActivity,
 } from '../types';
 import {
   INITIAL_CLASSES,
@@ -25,12 +26,14 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_ATTENDANCE_SESSIONS,
   INITIAL_GAMES,
+  INITIAL_ACTIVITIES,
 } from '../data/mockData';
 
 
 export type NavTab =
   | 'dashboard'
   | 'classes'
+  | 'activities'
   | 'attendance'
   | 'bank'
   | 'exams'
@@ -57,6 +60,9 @@ interface AppContextType {
   notifications: AppNotification[];
   currentRole: 'teacher' | 'student';
   setCurrentRole: (role: 'teacher' | 'student') => void;
+  isAuthenticated: boolean;
+  logout: () => void;
+  login: (role?: 'teacher' | 'student', password?: string) => boolean;
   selectedSchoolYear: string;
   setSelectedSchoolYear: (year: string) => void;
   selectedSemester: string;
@@ -118,6 +124,13 @@ interface AppContextType {
   deleteGame: (gameId: string) => void;
   updateGame: (gameId: string, updates: Partial<GameItem>) => void;
 
+  activities: ClassActivity[];
+  addActivity: (act: Omit<ClassActivity, 'id' | 'likesCount' | 'createdDate'>) => void;
+  updateActivity: (id: string, updates: Partial<ClassActivity>) => void;
+  deleteActivity: (id: string) => void;
+  toggleLikeActivity: (id: string) => void;
+  togglePinActivity: (id: string) => void;
+
   addAssignment: (a: Omit<Assignment, 'id' | 'assignedDate' | 'submittedCount'>) => void;
 
 
@@ -148,9 +161,26 @@ const STORAGE_KEY = 'thang_math_edtech_state_v2';
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [currentRole, setCurrentRole] = useState<'teacher' | 'student'>('teacher');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_is_authenticated`);
+    return saved !== null ? saved === 'true' : true;
+  });
   const [selectedSchoolYear, setSelectedSchoolYear] = useState('2025-2026');
   const [selectedSemester, setSelectedSemester] = useState('Học kỳ 2');
   const [selectedClassId, setSelectedClassId] = useState('all');
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    localStorage.setItem(`${STORAGE_KEY}_is_authenticated`, 'false');
+    setActiveExamTaking(null);
+  };
+
+  const login = (role: 'teacher' | 'student' = 'teacher', _password?: string) => {
+    setIsAuthenticated(true);
+    setCurrentRole(role);
+    localStorage.setItem(`${STORAGE_KEY}_is_authenticated`, 'true');
+    return true;
+  };
 
   const [classes, setClasses] = useState<ClassRoom[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_classes`);
@@ -212,6 +242,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_GAMES;
   });
 
+  const [activities, setActivities] = useState<ClassActivity[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_activities`);
+    return saved ? JSON.parse(saved) : INITIAL_ACTIVITIES;
+  });
+
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   // Modals state
@@ -256,6 +291,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_games`, JSON.stringify(games));
   }, [games]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_activities`, JSON.stringify(activities));
+  }, [activities]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_profile`, JSON.stringify(teacherProfile));
@@ -475,6 +514,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGames((prev) => prev.map((g) => (g.id === gameId ? { ...g, ...updates } : g)));
   };
 
+  const addActivity = (act: Omit<ClassActivity, 'id' | 'likesCount' | 'createdDate'>) => {
+    const newAct: ClassActivity = {
+      ...act,
+      id: `act_${Date.now()}`,
+      likesCount: 0,
+      createdDate: new Date().toLocaleDateString('vi-VN'),
+    };
+    setActivities((prev) => [newAct, ...prev]);
+  };
+
+  const updateActivity = (id: string, updates: Partial<ClassActivity>) => {
+    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)));
+  };
+
+  const deleteActivity = (id: string) => {
+    setActivities((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const toggleLikeActivity = (id: string) => {
+    setActivities((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, likesCount: a.likesCount + 1 } : a))
+    );
+  };
+
+  const togglePinActivity = (id: string) => {
+    setActivities((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, isPinned: !a.isPinned } : a))
+    );
+  };
+
   const addAssignment = (a: Omit<Assignment, 'id' | 'assignedDate' | 'submittedCount'>) => {
 
     const newA: Assignment = {
@@ -599,6 +668,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAssignments(INITIAL_ASSIGNMENTS);
     setAttendanceSessions(INITIAL_ATTENDANCE_SESSIONS);
     setGames(INITIAL_GAMES);
+    setActivities(INITIAL_ACTIVITIES);
     setTeacherProfile(INITIAL_TEACHER_PROFILE);
     setNotifications(INITIAL_NOTIFICATIONS);
     setSubmissions([]);
@@ -614,6 +684,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAssignments([]);
     setAttendanceSessions([]);
     setGames([]);
+    setActivities([]);
     setSubmissions([]);
   };
 
@@ -630,6 +701,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assignments,
       attendanceSessions,
       games,
+      activities,
       teacherProfile,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -654,6 +726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.assignments) setAssignments(data.assignments);
       if (data.attendanceSessions) setAttendanceSessions(data.attendanceSessions);
       if (data.games) setGames(data.games);
+      if (data.activities) setActivities(data.activities);
       if (data.teacherProfile) setTeacherProfile(data.teacherProfile);
       return true;
     } catch {
@@ -674,6 +747,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addGame,
         deleteGame,
         updateGame,
+        activities,
+        addActivity,
+        updateActivity,
+        deleteActivity,
+        toggleLikeActivity,
+        togglePinActivity,
         gradeRecords,
         assignments,
         attendanceSessions,
@@ -682,6 +761,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifications,
         currentRole,
         setCurrentRole,
+        isAuthenticated,
+        logout,
+        login,
         selectedSchoolYear,
         setSelectedSchoolYear,
         selectedSemester,

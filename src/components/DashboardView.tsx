@@ -22,6 +22,7 @@ import {
   HelpCircle,
   UserCheck,
   Gamepad2,
+  Sparkles,
 } from 'lucide-react';
 
 import { useApp } from '../context/AppContext';
@@ -580,6 +581,16 @@ export const DashboardView: React.FC = () => {
               <span>Ngân hàng Game</span>
             </button>
 
+            <button
+              onClick={() => setActiveTab('activities')}
+              className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-900 font-semibold text-xs text-left transition-all group col-span-2"
+            >
+              <div className="w-6 h-6 rounded bg-amber-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+              <span className="flex-1">Hoạt động nổi bật các lớp & Video</span>
+              <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-bold">Mới</span>
+            </button>
 
             <button
               onClick={() => setActiveTab('attendance')}
@@ -589,7 +600,6 @@ export const DashboardView: React.FC = () => {
                 <UserCheck className="w-3.5 h-3.5" />
               </div>
               <span className="flex-1">Điểm danh lớp học hôm nay</span>
-              <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-bold">Mới</span>
             </button>
           </div>
         </div>
