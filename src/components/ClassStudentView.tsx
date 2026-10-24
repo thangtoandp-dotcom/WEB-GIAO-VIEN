@@ -20,6 +20,10 @@ import {
   Save,
   X,
   FileText,
+  CheckSquare,
+  Square,
+  RotateCcw,
+  Check,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Student, ClassRoom, GradeLevel } from '../types';
@@ -34,6 +38,10 @@ export const ClassStudentView: React.FC = () => {
     addStudent,
     updateStudent,
     deleteStudent,
+    deleteStudentsBatch,
+    clearClassStudents,
+    clearAllStudents,
+    resetToDefaultData,
     importStudentsList,
     selectedStudent,
     setSelectedStudent,
@@ -54,7 +62,10 @@ export const ClassStudentView: React.FC = () => {
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<'all' | '10' | '11' | '12'>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'good' | 'warning' | 'danger'>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 8;
+  const pageSize = 10;
+
+  // Selected student IDs for batch actions
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   // New Class Form State
   const [newClassName, setNewClassName] = useState('');
@@ -74,6 +85,15 @@ export const ClassStudentView: React.FC = () => {
   const [newStPhone, setNewStPhone] = useState('');
   const [newStNotes, setNewStNotes] = useState('');
 
+  // Edit Student Form State
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [editStName, setEditStName] = useState('');
+  const [editStCode, setEditStCode] = useState('');
+  const [editStClassId, setEditStClassId] = useState('');
+  const [editStGender, setEditStGender] = useState<'Nam' | 'Nữ'>('Nam');
+  const [editStPhone, setEditStPhone] = useState('');
+  const [editStNotes, setEditStNotes] = useState('');
+
   // Import Modal State
   const [importCsvText, setImportCsvText] = useState('');
   const [importPreviewList, setImportPreviewList] = useState<Partial<Student>[]>([]);
@@ -81,6 +101,13 @@ export const ClassStudentView: React.FC = () => {
 
   // Remarks edit state in Dossier
   const [editingRemarks, setEditingRemarks] = useState('');
+
+  // Toast feedback
+  const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+  const showFeedback = (msg: string) => {
+    setFeedbackMsg(msg);
+    setTimeout(() => setFeedbackMsg(null), 3500);
+  };
 
   // Filter students
   const filteredStudents = useMemo(() => {
@@ -103,6 +130,114 @@ export const ClassStudentView: React.FC = () => {
     const start = (currentPage - 1) * pageSize;
     return filteredStudents.slice(start, start + pageSize);
   }, [filteredStudents, currentPage]);
+
+  // Handle Select All on current page
+  const allCurrentPageSelected =
+    paginatedStudents.length > 0 &&
+    paginatedStudents.every((s) => selectedStudentIds.includes(s.id));
+
+  const handleToggleSelectAll = () => {
+    if (allCurrentPageSelected) {
+      const currentPageIds = new Set(paginatedStudents.map((s) => s.id));
+      setSelectedStudentIds((prev) => prev.filter((id) => !currentPageIds.has(id)));
+    } else {
+      const currentPageIds = paginatedStudents.map((s) => s.id);
+      setSelectedStudentIds((prev) => Array.from(new Set([...prev, ...currentPageIds])));
+    }
+  };
+
+  const handleToggleSelectStudent = (id: string) => {
+    setSelectedStudentIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Open Edit Student Modal
+  const handleOpenEditStudent = (st: Student) => {
+    setEditingStudent(st);
+    setEditStName(st.name);
+    setEditStCode(st.code);
+    setEditStClassId(st.classId);
+    setEditStGender(st.gender);
+    setEditStPhone(st.phone || '');
+    setEditStNotes(st.notes || '');
+  };
+
+  const handleSaveStudentEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent || !editStName.trim()) return;
+
+    const targetClass = classes.find((c) => c.id === editStClassId) || classes[0];
+    updateStudent(editingStudent.id, {
+      name: editStName.trim(),
+      code: editStCode.trim(),
+      classId: targetClass.id,
+      className: targetClass.name,
+      gender: editStGender,
+      phone: editStPhone.trim(),
+      notes: editStNotes.trim(),
+    });
+
+    setEditingStudent(null);
+    showFeedback(`Đã cập nhật thông tin học sinh "${editStName.trim()}" thành công!`);
+  };
+
+  // Batch delete selected
+  const handleDeleteSelected = () => {
+    if (selectedStudentIds.length === 0) return;
+    if (
+      confirm(
+        `Thầy có chắc chắn muốn xóa ${selectedStudentIds.length} học sinh đã chọn khỏi hệ thống? Dữ liệu sẽ được lưu cố định và không bị phục hồi lại khi tải lại trang.`
+      )
+    ) {
+      deleteStudentsBatch(selectedStudentIds);
+      const count = selectedStudentIds.length;
+      setSelectedStudentIds([]);
+      showFeedback(`Đã xóa vĩnh viễn ${count} học sinh thành công!`);
+    }
+  };
+
+  // Clear students in current class filter
+  const handleClearCurrentClass = () => {
+    if (selectedClassFilter === 'all') {
+      alert('Vui lòng chọn một lớp cụ thể ở bộ lọc lớp bên dưới để xóa học sinh lớp đó.');
+      return;
+    }
+    const targetClass = classes.find((c) => c.id === selectedClassFilter);
+    const classStudentsCount = students.filter((s) => s.classId === selectedClassFilter).length;
+    if (classStudentsCount === 0) {
+      alert(`Lớp ${targetClass?.name || ''} hiện tại không có học sinh nào.`);
+      return;
+    }
+    if (
+      confirm(
+        `CẢNH BÁO: Thầy có chắc chắn muốn xóa toàn bộ ${classStudentsCount} học sinh của lớp ${
+          targetClass?.name || ''
+        }? Dữ liệu sẽ được lưu cố định và không xuất hiện lại.`
+      )
+    ) {
+      clearClassStudents(selectedClassFilter);
+      setSelectedStudentIds([]);
+      showFeedback(`Đã xóa sạch toàn bộ học sinh lớp ${targetClass?.name}!`);
+    }
+  };
+
+  // Clear all students in system
+  const handleClearAll = () => {
+    if (students.length === 0) {
+      alert('Danh sách học sinh hiện đã trống.');
+      return;
+    }
+    if (
+      confirm(
+        `CẢNH BÁO: Thầy có chắc chắn muốn xóa TOÀN BỘ ${students.length} học sinh trong hệ thống để bắt đầu nhập danh sách thực tế của trường? Khi vào lại trang web dữ liệu sẽ không bị hoàn tác.`
+      )
+    ) {
+      clearAllStudents();
+      setSelectedStudentIds([]);
+      showFeedback('Đã làm trống toàn bộ danh sách học sinh thành công!');
+    }
+  };
 
   // Export to CSV with UTF-8 BOM
   const handleExportCSV = () => {
@@ -159,7 +294,6 @@ export const ClassStudentView: React.FC = () => {
     const parsed: Partial<Student>[] = [];
     const seenCodes = new Set<string>();
 
-    // Skip header line
     lines.slice(1).forEach((line, index) => {
       const parts = line.split(',').map((p) => p.trim().replace(/^["']|["']$/g, ''));
       if (parts.length < 2) {
@@ -210,6 +344,7 @@ export const ClassStudentView: React.FC = () => {
     setNewClassName('');
     setNewClassDesc('');
     setIsCreateClassOpen(false);
+    showFeedback(`Đã tạo lớp học "${newClassName.trim()}" thành công!`);
   };
 
   // Submit Add Student
@@ -235,16 +370,30 @@ export const ClassStudentView: React.FC = () => {
     setNewStPhone('');
     setNewStNotes('');
     setIsAddStudentOpen(false);
+    showFeedback(`Đã thêm học sinh "${newStName.trim()}" vào lớp ${targetClass.name}!`);
   };
 
   return (
     <div className="space-y-4">
+      {/* Toast Feedback */}
+      {feedbackMsg && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center justify-between shadow-xs animate-fade-in">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span>{feedbackMsg}</span>
+          </div>
+          <button onClick={() => setFeedbackMsg(null)} className="text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Sub Tabs & Top Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveSubTab('students')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer ${
               activeSubTab === 'students'
                 ? 'bg-[#0878D1] text-white shadow-sm'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -256,7 +405,7 @@ export const ClassStudentView: React.FC = () => {
 
           <button
             onClick={() => setActiveSubTab('classes')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer ${
               activeSubTab === 'classes'
                 ? 'bg-[#0878D1] text-white shadow-sm'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -268,12 +417,51 @@ export const ClassStudentView: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {activeSubTab === 'students' ? (
             <>
+              {/* Clear Options Button */}
+              {students.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  {selectedClassFilter !== 'all' && (
+                    <button
+                      onClick={handleClearCurrentClass}
+                      className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer"
+                      title="Xóa toàn bộ học sinh của lớp đang chọn"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa HS lớp này</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={handleClearAll}
+                    className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-300 transition-colors cursor-pointer"
+                    title="Xóa toàn bộ danh sách để bắt đầu trống"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Làm trống toàn bộ HS</span>
+                  </button>
+                </div>
+              )}
+
+              {students.length === 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm('Thầy có muốn nạp lại dữ liệu mẫu 10 học sinh chuẩn THPT Đan Phượng không?')) {
+                      resetToDefaultData();
+                      showFeedback('Đã khôi phục dữ liệu mẫu!');
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-blue-50 text-[#0878D1] hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Khôi phục dữ liệu mẫu</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setIsImportStudentsOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>Nhập Excel / CSV</span>
@@ -281,7 +469,8 @@ export const ClassStudentView: React.FC = () => {
 
               <button
                 onClick={handleExportCSV}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-blue-50 text-[#0878D1] hover:bg-blue-100 border border-blue-200 transition-colors"
+                disabled={students.length === 0}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-blue-50 text-[#0878D1] hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer disabled:opacity-40"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Xuất CSV</span>
@@ -289,7 +478,7 @@ export const ClassStudentView: React.FC = () => {
 
               <button
                 onClick={() => setIsAddStudentOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#0878D1] hover:bg-[#064A87] text-white shadow-sm transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#0878D1] hover:bg-[#064A87] text-white shadow-sm transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Thêm học sinh</span>
@@ -298,7 +487,7 @@ export const ClassStudentView: React.FC = () => {
           ) : (
             <button
               onClick={() => setIsCreateClassOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#0878D1] hover:bg-[#064A87] text-white shadow-sm transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#0878D1] hover:bg-[#064A87] text-white shadow-sm transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Tạo lớp học mới</span>
@@ -375,14 +564,53 @@ export const ClassStudentView: React.FC = () => {
             </select>
           </div>
 
+          {/* Batch Action Bar if items selected */}
+          {selectedStudentIds.length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs animate-fade-in">
+              <div className="flex items-center gap-2 font-semibold text-red-800">
+                <CheckSquare className="w-4 h-4 text-red-600" />
+                <span>Đã chọn {selectedStudentIds.length} học sinh</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedStudentIds([])}
+                  className="px-3 py-1.5 text-gray-600 hover:bg-white rounded-lg cursor-pointer"
+                >
+                  Bỏ chọn
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xóa vĩnh viễn {selectedStudentIds.length} học sinh đã chọn</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Students Table */}
           <div className="overflow-x-auto border border-gray-200 rounded-lg">
             <table className="w-full text-xs text-left">
               <thead className="bg-[#EAF5FF] text-[#064A87] font-bold border-b border-blue-200">
                 <tr>
+                  <th className="py-2.5 px-3 w-8">
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectAll}
+                      className="text-gray-500 hover:text-[#0878D1] cursor-pointer"
+                      title={allCurrentPageSelected ? 'Bỏ chọn trang này' : 'Chọn tất cả trang này'}
+                    >
+                      {allCurrentPageSelected ? (
+                        <CheckSquare className="w-4 h-4 text-[#0878D1]" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </th>
                   <th className="py-2.5 px-3">STT</th>
                   <th className="py-2.5 px-3">Mã HS</th>
-                  <th className="py-2.5 px-3">Họ và tên</th>
+                  <th className="py-2.5 px-3">Họ và tên học sinh</th>
                   <th className="py-2.5 px-2">Lớp</th>
                   <th className="py-2.5 px-2">Giới tính</th>
                   <th className="py-2.5 px-3">Điểm TB</th>
@@ -394,18 +622,47 @@ export const ClassStudentView: React.FC = () => {
               <tbody className="divide-y divide-gray-100">
                 {paginatedStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-gray-400">
-                      Không tìm thấy học sinh nào phù hợp với bộ lọc.
+                    <td colSpan={10} className="py-12 text-center text-gray-400">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <Users className="w-8 h-8 text-gray-300" />
+                        <p className="font-semibold text-gray-600">
+                          {students.length === 0
+                            ? 'Danh sách học sinh đang trống (Bạn đã xóa sạch danh sách).'
+                            : 'Không tìm thấy học sinh nào phù hợp với bộ lọc tìm kiếm.'}
+                        </p>
+                        <p className="text-[11px] text-gray-400">
+                          {students.length === 0
+                            ? 'Thầy có thể bấm "Thêm học sinh" hoặc "Nhập Excel / CSV" để đưa học sinh thực tế vào hệ thống.'
+                            : 'Hãy thử thay đổi từ khóa hoặc bộ lọc lớp/khối.'}
+                        </p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   paginatedStudents.map((st, index) => {
                     const stt = (currentPage - 1) * pageSize + index + 1;
+                    const isSelected = selectedStudentIds.includes(st.id);
                     return (
                       <tr
                         key={st.id}
-                        className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                        className={`hover:bg-blue-50/50 transition-colors cursor-pointer group ${
+                          isSelected ? 'bg-blue-50/40' : ''
+                        }`}
                       >
+                        <td
+                          className="py-2.5 px-3"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleSelectStudent(st.id);
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectStudent(st.id)}
+                            className="w-4 h-4 rounded text-[#0878D1] cursor-pointer"
+                          />
+                        </td>
                         <td
                           className="py-2.5 px-3 text-gray-500 font-medium"
                           onClick={() => setSelectedStudent(st)}
@@ -470,25 +727,42 @@ export const ClassStudentView: React.FC = () => {
                           {st.notes || st.statusReason || 'Chưa có ghi chú'}
                         </td>
                         <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                          {/* Sửa tên và thông tin */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditStudent(st);
+                            }}
+                            className="px-2 py-1 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold cursor-pointer inline-flex items-center gap-1"
+                            title="Sửa tên hoặc thông tin học sinh"
+                          >
+                            <Edit className="w-3 h-3" />
+                            <span>Sửa</span>
+                          </button>
+
+                          {/* Xem hồ sơ */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedStudent(st);
                             }}
-                            className="px-2 py-1 rounded bg-blue-50 text-[#0878D1] hover:bg-blue-100 font-semibold"
+                            className="px-2 py-1 rounded bg-blue-50 text-[#0878D1] hover:bg-blue-100 font-semibold cursor-pointer"
                             title="Xem hồ sơ chi tiết"
                           >
                             Hồ sơ
                           </button>
+
+                          {/* Xóa học sinh */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`Thầy có chắc chắn muốn xóa học sinh ${st.name} (${st.code}) khỏi hệ thống?`)) {
+                              if (confirm(`Thầy có chắc chắn muốn xóa học sinh "${st.name}" (${st.code}) khỏi hệ thống? Dữ liệu sẽ được lưu vĩnh viễn và không hồi lại khi tải lại trang.`)) {
                                 deleteStudent(st.id);
+                                showFeedback(`Đã xóa vĩnh viễn học sinh "${st.name}"!`);
                               }
                             }}
-                            className="p-1 rounded text-red-500 hover:bg-red-50"
-                            title="Xóa học sinh"
+                            className="p-1 rounded text-red-500 hover:bg-red-50 cursor-pointer"
+                            title="Xóa học sinh này"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -502,33 +776,35 @@ export const ClassStudentView: React.FC = () => {
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-between text-xs text-gray-600 pt-2">
-            <span>
-              Hiển thị {(currentPage - 1) * pageSize + 1} -{' '}
-              {Math.min(currentPage * pageSize, filteredStudents.length)} trên tổng số{' '}
-              {filteredStudents.length} học sinh
-            </span>
-
-            <div className="flex items-center gap-2">
-              <button
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
-                className="p-1.5 rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="font-semibold text-gray-800">
-                Trang {currentPage} / {totalPages}
+          {filteredStudents.length > 0 && (
+            <div className="flex items-center justify-between text-xs text-gray-600 pt-2">
+              <span>
+                Hiển thị {(currentPage - 1) * pageSize + 1} -{' '}
+                {Math.min(currentPage * pageSize, filteredStudents.length)} trên tổng số{' '}
+                {filteredStudents.length} học sinh
               </span>
-              <button
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
-                className="p-1.5 rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  className="p-1.5 rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="font-semibold text-gray-800">
+                  Trang {currentPage} / {totalPages}
+                </span>
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="p-1.5 rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         /* CLASSES MANAGEMENT VIEW */
@@ -587,15 +863,15 @@ export const ClassStudentView: React.FC = () => {
                     setSelectedClassFilter(cls.id);
                     setActiveSubTab('students');
                   }}
-                  className="text-[#0878D1] font-semibold hover:underline"
+                  className="text-[#0878D1] font-semibold hover:underline cursor-pointer"
                 >
-                  Xem danh sách HS →
+                  Xem danh sách HS ({cls.totalStudents}) →
                 </button>
 
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setEditingClass(cls)}
-                    className="p-1 rounded text-blue-600 hover:bg-blue-50"
+                    className="p-1 rounded text-blue-600 hover:bg-blue-50 cursor-pointer"
                     title="Chỉnh sửa lớp"
                   >
                     <Edit className="w-3.5 h-3.5" />
@@ -604,9 +880,10 @@ export const ClassStudentView: React.FC = () => {
                     onClick={() => {
                       if (confirm(`Thầy có chắc chắn muốn xóa lớp ${cls.name}?`)) {
                         deleteClass(cls.id);
+                        showFeedback(`Đã xóa lớp ${cls.name}!`);
                       }
                     }}
-                    className="p-1 rounded text-red-500 hover:bg-red-50"
+                    className="p-1 rounded text-red-500 hover:bg-red-50 cursor-pointer"
                     title="Xóa lớp"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -615,6 +892,124 @@ export const ClassStudentView: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* EDIT STUDENT MODAL */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-blue-100 animate-fade-in">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Edit className="w-4 h-4 text-[#0878D1]" />
+                <h3 className="text-base font-bold text-[#064A87]">
+                  Chỉnh sửa thông tin học sinh
+                </h3>
+              </div>
+              <button
+                onClick={() => setEditingStudent(null)}
+                className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStudentEdit} className="py-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Họ và tên học sinh *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editStName}
+                  onChange={(e) => setEditStName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0878D1] font-semibold text-gray-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Mã học sinh *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editStCode}
+                    onChange={(e) => setEditStCode(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Lớp học</label>
+                  <select
+                    value={editStClassId}
+                    onChange={(e) => setEditStClassId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                  >
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Giới tính</label>
+                  <select
+                    value={editStGender}
+                    onChange={(e) => setEditStGender(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="Nam">Nam</option>
+                    <option value="Nữ">Nữ</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Số điện thoại</label>
+                  <input
+                    type="text"
+                    value={editStPhone}
+                    onChange={(e) => setEditStPhone(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Ghi chú sư phạm
+                </label>
+                <textarea
+                  rows={2}
+                  value={editStNotes}
+                  onChange={(e) => setEditStNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingStudent(null)}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#0878D1] hover:bg-[#064A87] text-white font-semibold rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Lưu thay đổi</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -642,12 +1037,24 @@ export const ClassStudentView: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                onClick={() => setSelectedStudent(null)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleOpenEditStudent(selectedStudent);
+                    setSelectedStudent(null);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold rounded-lg flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  <span>Sửa thông tin</span>
+                </button>
+                <button
+                  onClick={() => setSelectedStudent(null)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Modal Body */}
@@ -745,7 +1152,7 @@ export const ClassStudentView: React.FC = () => {
                       setSelectedStudent(null);
                       setActiveTab('ai');
                     }}
-                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-[#0878D1] border border-blue-300 shadow-xs hover:bg-blue-50"
+                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-[#0878D1] border border-blue-300 shadow-xs hover:bg-blue-50 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>Gợi ý nhận xét bằng AI</span>
@@ -766,9 +1173,9 @@ export const ClassStudentView: React.FC = () => {
                       const remarksToSave =
                         editingRemarks !== '' ? editingRemarks : selectedStudent.notes || '';
                       updateTeacherRemarks(selectedStudent.id, remarksToSave);
-                      alert('Đã lưu nhận xét sư phạm cho học sinh thành công!');
+                      showFeedback('Đã lưu nhận xét sư phạm cho học sinh thành công!');
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0878D1] hover:bg-[#064A87] text-white text-xs font-semibold rounded-lg shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0878D1] hover:bg-[#064A87] text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer"
                   >
                     <Save className="w-3.5 h-3.5" />
                     <span>Lưu nhận xét</span>
@@ -780,7 +1187,7 @@ export const ClassStudentView: React.FC = () => {
             <div className="pt-3 border-t border-gray-100 flex justify-end">
               <button
                 onClick={() => setSelectedStudent(null)}
-                className="px-4 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
+                className="px-4 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg cursor-pointer"
               >
                 Đóng hồ sơ
               </button>
@@ -797,7 +1204,7 @@ export const ClassStudentView: React.FC = () => {
               <h3 className="text-base font-bold text-[#064A87]">Tạo lớp học mới</h3>
               <button
                 onClick={() => setIsCreateClassOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-700"
+                className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -867,13 +1274,13 @@ export const ClassStudentView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsCreateClassOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#0878D1] hover:bg-[#064A87] text-white font-semibold rounded-lg shadow-sm"
+                  className="px-4 py-2 bg-[#0878D1] hover:bg-[#064A87] text-white font-semibold rounded-lg shadow-sm cursor-pointer"
                 >
                   Tạo lớp học
                 </button>
@@ -886,12 +1293,12 @@ export const ClassStudentView: React.FC = () => {
       {/* ADD STUDENT MODAL */}
       {isAddStudentOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-blue-100">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-blue-100 animate-fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <h3 className="text-base font-bold text-[#064A87]">Thêm học sinh mới</h3>
               <button
                 onClick={() => setIsAddStudentOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-700"
+                className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -978,13 +1385,13 @@ export const ClassStudentView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddStudentOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#0878D1] hover:bg-[#064A87] text-white font-semibold rounded-lg shadow-sm"
+                  className="px-4 py-2 bg-[#0878D1] hover:bg-[#064A87] text-white font-semibold rounded-lg shadow-sm cursor-pointer"
                 >
                   Lưu học sinh
                 </button>
@@ -1007,7 +1414,7 @@ export const ClassStudentView: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsImportStudentsOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-700"
+                className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1022,7 +1429,7 @@ export const ClassStudentView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDownloadSampleTemplate}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-[#0878D1] border border-blue-300 rounded-lg font-semibold hover:bg-blue-50 shadow-xs"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-[#0878D1] border border-blue-300 rounded-lg font-semibold hover:bg-blue-50 shadow-xs cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Tải tệp mẫu</span>
@@ -1094,7 +1501,7 @@ export const ClassStudentView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsImportStudentsOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
                 >
                   Hủy
                 </button>
@@ -1103,12 +1510,12 @@ export const ClassStudentView: React.FC = () => {
                   disabled={importPreviewList.length === 0}
                   onClick={() => {
                     importStudentsList(importPreviewList);
-                    alert(`Đã nhập thành công ${importPreviewList.length} học sinh vào hệ thống!`);
+                    showFeedback(`Đã nhập thành công ${importPreviewList.length} học sinh vào hệ thống!`);
                     setIsImportStudentsOpen(false);
                     setImportCsvText('');
                     setImportPreviewList([]);
                   }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-semibold rounded-lg shadow-sm"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-semibold rounded-lg shadow-sm cursor-pointer"
                 >
                   Xác nhận nhập {importPreviewList.length} học sinh
                 </button>

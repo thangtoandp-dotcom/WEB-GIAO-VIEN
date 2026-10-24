@@ -121,6 +121,9 @@ interface AppContextType {
   addStudent: (st: Omit<Student, 'id' | 'avgScore' | 'totalTests' | 'recentScores'>) => void;
   updateStudent: (id: string, updates: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
+  deleteStudentsBatch: (ids: string[]) => void;
+  clearClassStudents: (classId: string) => void;
+  clearAllStudents: () => void;
   importStudentsList: (newStudents: Partial<Student>[]) => void;
 
   addQuestion: (q: Omit<Question, 'id' | 'createdDate'>) => void;
@@ -180,13 +183,26 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'thang_math_edtech_state_v2';
+const CUSTOMIZED_KEY = `${STORAGE_KEY}_is_customized`;
+
+const safeSetStorage = (key: string, val: any) => {
+  try {
+    localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+  } catch (e) {
+    console.warn(`localStorage save failed for ${key}:`, e);
+  }
+};
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [currentRole, setCurrentRole] = useState<'teacher' | 'student'>('teacher');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_is_authenticated`);
-    return saved !== null ? saved === 'true' : true;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_is_authenticated`);
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
   });
   const [selectedSchoolYear, setSelectedSchoolYear] = useState('2025-2026');
   const [selectedSemester, setSelectedSemester] = useState('Học kỳ 2');
@@ -194,80 +210,145 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setIsAuthenticated(false);
-    localStorage.setItem(`${STORAGE_KEY}_is_authenticated`, 'false');
+    safeSetStorage(`${STORAGE_KEY}_is_authenticated`, 'false');
     setActiveExamTaking(null);
   };
 
   const login = (role: 'teacher' | 'student' = 'teacher', _password?: string) => {
     setIsAuthenticated(true);
     setCurrentRole(role);
-    localStorage.setItem(`${STORAGE_KEY}_is_authenticated`, 'true');
+    safeSetStorage(`${STORAGE_KEY}_is_authenticated`, 'true');
     return true;
   };
 
   const [classes, setClasses] = useState<ClassRoom[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_classes`);
-    return saved ? JSON.parse(saved) : INITIAL_CLASSES;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_classes`);
+      if (saved !== null) return JSON.parse(saved);
+      const isCustomized = localStorage.getItem(CUSTOMIZED_KEY);
+      if (isCustomized === 'true') return [];
+      return INITIAL_CLASSES;
+    } catch {
+      return INITIAL_CLASSES;
+    }
   });
 
   const [students, setStudents] = useState<Student[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_students`);
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_students`);
+      if (saved !== null) {
+        return JSON.parse(saved);
+      }
+      const isCustomized = localStorage.getItem(CUSTOMIZED_KEY);
+      if (isCustomized === 'true') {
+        return [];
+      }
+      return INITIAL_STUDENTS;
+    } catch {
+      return INITIAL_STUDENTS;
+    }
   });
 
   const [questions, setQuestions] = useState<Question[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_questions`);
-    return saved ? JSON.parse(saved) : INITIAL_QUESTIONS;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_questions`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_QUESTIONS;
+    } catch {
+      return INITIAL_QUESTIONS;
+    }
   });
 
   const [exams, setExams] = useState<Exam[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_exams`);
-    return saved ? JSON.parse(saved) : INITIAL_EXAMS;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_exams`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_EXAMS;
+    } catch {
+      return INITIAL_EXAMS;
+    }
   });
 
   const [gradeRecords, setGradeRecords] = useState<GradeRecord[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_grades`);
-    return saved ? JSON.parse(saved) : INITIAL_GRADE_RECORDS;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_grades`);
+      if (saved !== null) return JSON.parse(saved);
+      const isCustomized = localStorage.getItem(CUSTOMIZED_KEY);
+      if (isCustomized === 'true') return [];
+      return INITIAL_GRADE_RECORDS;
+    } catch {
+      return INITIAL_GRADE_RECORDS;
+    }
   });
 
   const [assignments, setAssignments] = useState<Assignment[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_assignments`);
-    return saved ? JSON.parse(saved) : INITIAL_ASSIGNMENTS;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_assignments`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_ASSIGNMENTS;
+    } catch {
+      return INITIAL_ASSIGNMENTS;
+    }
   });
 
   const [documents, setDocuments] = useState<DocItem[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_documents`);
-    return saved ? JSON.parse(saved) : INITIAL_DOCUMENTS;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_documents`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_DOCUMENTS;
+    } catch {
+      return INITIAL_DOCUMENTS;
+    }
   });
 
   const [teacherProfile, setTeacherProfile] = useState<TeacherProfile>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_profile`);
-    return saved ? JSON.parse(saved) : INITIAL_TEACHER_PROFILE;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_profile`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_TEACHER_PROFILE;
+    } catch {
+      return INITIAL_TEACHER_PROFILE;
+    }
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_notifications`);
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_notifications`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    } catch {
+      return INITIAL_NOTIFICATIONS;
+    }
   });
 
   const [submissions, setSubmissions] = useState<ExamSubmission[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_submissions`);
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_submissions`);
+      return saved !== null ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_attendance`);
-    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE_SESSIONS;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_attendance`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_ATTENDANCE_SESSIONS;
+    } catch {
+      return INITIAL_ATTENDANCE_SESSIONS;
+    }
   });
 
   const [games, setGames] = useState<GameItem[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_games`);
-    return saved ? JSON.parse(saved) : INITIAL_GAMES;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_games`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_GAMES;
+    } catch {
+      return INITIAL_GAMES;
+    }
   });
 
   const [activities, setActivities] = useState<ClassActivity[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_activities`);
-    return saved ? JSON.parse(saved) : INITIAL_ACTIVITIES;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_activities`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_ACTIVITIES;
+    } catch {
+      return INITIAL_ACTIVITIES;
+    }
   });
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -286,57 +367,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // AI assistant prefill
   const [aiInitialPrompt, setAiInitialPrompt] = useState('');
 
-  // Save to localStorage when state changes
+  // Save to localStorage whenever state changes
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_classes`, JSON.stringify(classes));
+    safeSetStorage(`${STORAGE_KEY}_classes`, classes);
   }, [classes]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_students`, JSON.stringify(students));
+    safeSetStorage(`${STORAGE_KEY}_students`, students);
   }, [students]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_questions`, JSON.stringify(questions));
+    safeSetStorage(`${STORAGE_KEY}_questions`, questions);
   }, [questions]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_exams`, JSON.stringify(exams));
+    safeSetStorage(`${STORAGE_KEY}_exams`, exams);
   }, [exams]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_grades`, JSON.stringify(gradeRecords));
+    safeSetStorage(`${STORAGE_KEY}_grades`, gradeRecords);
   }, [gradeRecords]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_assignments`, JSON.stringify(assignments));
+    safeSetStorage(`${STORAGE_KEY}_assignments`, assignments);
   }, [assignments]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_games`, JSON.stringify(games));
+    safeSetStorage(`${STORAGE_KEY}_games`, games);
   }, [games]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_activities`, JSON.stringify(activities));
+    safeSetStorage(`${STORAGE_KEY}_activities`, activities);
   }, [activities]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_profile`, JSON.stringify(teacherProfile));
+    safeSetStorage(`${STORAGE_KEY}_profile`, teacherProfile);
   }, [teacherProfile]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_notifications`, JSON.stringify(notifications));
+    safeSetStorage(`${STORAGE_KEY}_notifications`, notifications);
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_submissions`, JSON.stringify(submissions));
+    safeSetStorage(`${STORAGE_KEY}_submissions`, submissions);
   }, [submissions]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_attendance`, JSON.stringify(attendanceSessions));
+    safeSetStorage(`${STORAGE_KEY}_attendance`, attendanceSessions);
   }, [attendanceSessions]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_documents`, JSON.stringify(documents));
+    safeSetStorage(`${STORAGE_KEY}_documents`, documents);
   }, [documents]);
 
   // Supabase cloud synchronization state
@@ -357,6 +438,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else if (res.tablesFound && res.tablesFound.length > 0) {
         setSupabaseStatus('connected');
         setSupabaseMessage(res.message);
+
+        // Check if students exist in Supabase Cloud
+        try {
+          const { data: dbStudents, error: errSt } = await supabase.from('students').select('*').limit(1000);
+          if (!errSt && dbStudents) {
+            const isCustomized = localStorage.getItem(CUSTOMIZED_KEY);
+            if (dbStudents.length > 0) {
+              const mapped = dbStudents.map(mapStudentFromDB);
+              setStudents(mapped);
+              safeSetStorage(`${STORAGE_KEY}_students`, mapped);
+              safeSetStorage(CUSTOMIZED_KEY, 'true');
+            } else if (isCustomized === 'true') {
+              setStudents([]);
+              safeSetStorage(`${STORAGE_KEY}_students`, []);
+            }
+          }
+        } catch (cloudErr) {
+          console.warn('Supabase students load notice:', cloudErr);
+        }
       } else {
         setSupabaseStatus('tables_missing');
         setSupabaseMessage(res.message);
@@ -493,16 +593,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateStudent = (id: string, updates: Partial<Student>) => {
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          const updated = { ...s, ...updates };
-          silentBgSync(supabase.from('students').update(mapStudentToDB(updated)).eq('id', id));
-          return updated;
-        }
-        return s;
-      })
-    );
+    setStudents((prev) => {
+      const next = prev.map((s) => (s.id === id ? { ...s, ...updates } : s));
+      safeSetStorage(`${STORAGE_KEY}_students`, next);
+      safeSetStorage(CUSTOMIZED_KEY, 'true');
+      return next;
+    });
+    // If student name changed, update grade records as well
+    if (updates.name || updates.className || updates.code) {
+      setGradeRecords((prev) => {
+        const next = prev.map((g) =>
+          g.studentId === id
+            ? {
+                ...g,
+                studentName: updates.name || g.studentName,
+                studentCode: updates.code || g.studentCode,
+                className: updates.className || g.className,
+              }
+            : g
+        );
+        safeSetStorage(`${STORAGE_KEY}_grades`, next);
+        return next;
+      });
+    }
+    const current = students.find((s) => s.id === id);
+    if (current) {
+      silentBgSync(supabase.from('students').update(mapStudentToDB({ ...current, ...updates })).eq('id', id));
+    }
     if (selectedStudent && selectedStudent.id === id) {
       setSelectedStudent((prev) => (prev ? { ...prev, ...updates } : null));
     }
@@ -510,20 +627,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteStudent = (id: string) => {
     const st = students.find((s) => s.id === id);
-    setStudents((prev) => prev.filter((s) => s.id !== id));
-    setGradeRecords((prev) => prev.filter((g) => g.studentId !== id));
+    setStudents((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      safeSetStorage(`${STORAGE_KEY}_students`, next);
+      safeSetStorage(CUSTOMIZED_KEY, 'true');
+      return next;
+    });
+    setGradeRecords((prev) => {
+      const next = prev.filter((g) => g.studentId !== id);
+      safeSetStorage(`${STORAGE_KEY}_grades`, next);
+      return next;
+    });
     silentBgSync(supabase.from('students').delete().eq('id', id));
     silentBgSync(supabase.from('grade_records').delete().eq('student_id', id));
     if (st) {
-      setClasses((prev) =>
-        prev.map((c) =>
+      setClasses((prev) => {
+        const next = prev.map((c) =>
           c.id === st.classId ? { ...c, totalStudents: Math.max(0, c.totalStudents - 1) } : c
-        )
-      );
+        );
+        safeSetStorage(`${STORAGE_KEY}_classes`, next);
+        return next;
+      });
     }
     if (selectedStudent && selectedStudent.id === id) {
       setSelectedStudent(null);
     }
+  };
+
+  const deleteStudentsBatch = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const idsSet = new Set(ids);
+    setStudents((prev) => {
+      const next = prev.filter((s) => !idsSet.has(s.id));
+      safeSetStorage(`${STORAGE_KEY}_students`, next);
+      safeSetStorage(CUSTOMIZED_KEY, 'true');
+      return next;
+    });
+    setGradeRecords((prev) => {
+      const next = prev.filter((g) => !idsSet.has(g.studentId));
+      safeSetStorage(`${STORAGE_KEY}_grades`, next);
+      return next;
+    });
+    silentBgSync(supabase.from('students').delete().in('id', ids));
+    silentBgSync(supabase.from('grade_records').delete().in('student_id', ids));
+
+    setClasses((prev) => {
+      const next = prev.map((c) => {
+        const remaining = students.filter((s) => s.classId === c.id && !idsSet.has(s.id)).length;
+        return { ...c, totalStudents: remaining };
+      });
+      safeSetStorage(`${STORAGE_KEY}_classes`, next);
+      return next;
+    });
+    if (selectedStudent && idsSet.has(selectedStudent.id)) {
+      setSelectedStudent(null);
+    }
+  };
+
+  const clearClassStudents = (classId: string) => {
+    const targetStudents = students.filter((s) => s.classId === classId);
+    if (targetStudents.length === 0) return;
+    deleteStudentsBatch(targetStudents.map((s) => s.id));
+  };
+
+  const clearAllStudents = () => {
+    setStudents([]);
+    setGradeRecords([]);
+    safeSetStorage(`${STORAGE_KEY}_students`, []);
+    safeSetStorage(`${STORAGE_KEY}_grades`, []);
+    safeSetStorage(CUSTOMIZED_KEY, 'true');
+    setClasses((prev) => {
+      const next = prev.map((c) => ({ ...c, totalStudents: 0 }));
+      safeSetStorage(`${STORAGE_KEY}_classes`, next);
+      return next;
+    });
+    silentBgSync(supabase.from('students').delete().neq('id', ''));
+    silentBgSync(supabase.from('grade_records').delete().neq('student_id', ''));
+    setSelectedStudent(null);
   };
 
   const importStudentsList = (newStudentsData: Partial<Student>[]) => {
@@ -1030,6 +1210,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addStudent,
         updateStudent,
         deleteStudent,
+        deleteStudentsBatch,
+        clearClassStudents,
+        clearAllStudents,
         importStudentsList,
         addQuestion,
         addQuestionsBatch,
