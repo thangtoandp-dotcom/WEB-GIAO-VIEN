@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ClassActivity, ActivityCategory, GradeLevel } from '../types';
+import { compressImageFile, readFileAsDataUrl } from '../lib/fileUtils';
 
 export const ClassActivitiesView: React.FC = () => {
   const {
@@ -214,31 +215,50 @@ export const ClassActivitiesView: React.FC = () => {
     setIsUploadModalOpen(false);
   };
 
-  // Handle image upload from computer
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle image upload from computer with automatic high-quality compression
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setFormImages((prev) => [...prev, event.target!.result as string]);
+    for (const file of Array.from(files)) {
+      try {
+        const compressedBase64 = await compressImageFile(file, 1200, 1200, 0.82);
+        if (compressedBase64) {
+          setFormImages((prev) => [...prev, compressedBase64]);
         }
-      };
-      reader.readAsDataURL(file);
-    });
+      } catch (err) {
+        console.warn('Lỗi xử lý ảnh:', err);
+      }
+    }
   };
 
-  // Handle video upload from computer
-  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle video upload from computer (with persistence across browsers)
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const url = URL.createObjectURL(file);
-    setFormVideoUrl(url);
     if (!formVideoTitle) {
-      setFormVideoTitle(`Video thực hành: ${file.name.replace(/\.[^/.]+$/, '')}`);
+      setFormVideoTitle(`Video hoạt động: ${file.name.replace(/\.[^/.]+$/, '')}`);
+    }
+
+    const sizeInMb = file.size / (1024 * 1024);
+    if (sizeInMb > 8) {
+      alert(
+        `Tệp video "${file.name}" có dung lượng khá lớn (${sizeInMb.toFixed(1)} MB). Để video tải nhanh và xem mượt mà trên tất cả thiết bị và trình duyệt khác, thầy vui lòng tải lên YouTube hoặc Google Drive rồi dán link vào ô "Đường dẫn video" nhé!`
+      );
+      // Still set temporary URL for immediate test preview
+      const tempUrl = URL.createObjectURL(file);
+      setFormVideoUrl(tempUrl);
+      return;
+    }
+
+    try {
+      // Read small video clips (< 8MB) as Data URL so they persist on Supabase and other browsers
+      const videoDataUrl = await readFileAsDataUrl(file);
+      setFormVideoUrl(videoDataUrl);
+    } catch {
+      const tempUrl = URL.createObjectURL(file);
+      setFormVideoUrl(tempUrl);
     }
   };
 

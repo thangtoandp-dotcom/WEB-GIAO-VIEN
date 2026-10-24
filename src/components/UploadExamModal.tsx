@@ -23,6 +23,7 @@ import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
 import { Question, GradeLevel, CognitiveLevel, QuestionType, Exam, DocItem } from '../types';
 import { MathRenderer } from './MathRenderer';
+import { readFileAsDataUrl } from '../lib/fileUtils';
 
 interface UploadExamModalProps {
   isOpen: boolean;
@@ -67,15 +68,16 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({ isOpen, onClos
   const [parsedCsvQuestions, setParsedCsvQuestions] = useState<ParsedQuestionItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ================= TAB 3: TỆP ĐỀ HOÀN CHỈNH (.DOCX / .PDF) =================
+  // ================= TAB 3: TỆP ĐỀ HOÀN CHỈNH (.DOCX / .PDF / .XLSX) =================
   const [docTitle, setDocTitle] = useState('');
-  const [docCategory, setDocCategory] = useState<'exam' | 'matrix' | 'reference'>('exam');
+  const [docCategory, setDocCategory] = useState<'exam' | 'matrix' | 'reference' | 'sgk' | 'guide'>('exam');
   const [docGrade, setDocGrade] = useState<GradeLevel>(12);
-  const [docFileType, setDocFileType] = useState<'PDF' | 'DOCX'>('PDF');
+  const [docFileType, setDocFileType] = useState<'PDF' | 'DOCX' | 'XLSX'>('PDF');
   const [docDescription, setDocDescription] = useState('');
   const [docDuration, setDocDuration] = useState(45);
   const [uploadedExamFileName, setUploadedExamFileName] = useState('');
   const [uploadedExamFileSize, setUploadedExamFileSize] = useState('');
+  const [uploadedFileBase64, setUploadedFileBase64] = useState<string>('');
   const [syncToOnlineTestFromDoc, setSyncToOnlineTestFromDoc] = useState(true);
   const examFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -420,7 +422,7 @@ Lời giải: Mặt cầu dạng chính tắc (x - a)^2 + (y - b)^2 + (z - c)^2 
     onClose();
   };
 
-  // ================= TAB 3: TỆP ĐỀ THI HOÀN CHỈNH (.DOCX / .PDF) =================
+  // ================= TAB 3: TỆP ĐỀ THI HOÀN CHỈNH (.DOCX / .PDF / .XLSX) =================
   const handleExamFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -433,11 +435,23 @@ Lời giải: Mặt cầu dạng chính tắc (x - a)^2 + (y - b)^2 + (z - c)^2 
       setDocTitle(file.name.replace(/\.[^/.]+$/, ''));
     }
 
-    if (file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc')) {
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.docx') || lower.endsWith('.doc')) {
       setDocFileType('DOCX');
+    } else if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) {
+      setDocFileType('XLSX');
     } else {
       setDocFileType('PDF');
     }
+
+    // Read real file content as base64 Data URL for persistent storage in Supabase
+    readFileAsDataUrl(file)
+      .then((dataUrl) => {
+        setUploadedFileBase64(dataUrl);
+      })
+      .catch((err) => {
+        console.error('Lỗi nạp tệp:', err);
+      });
   };
 
   const handleSaveCompleteExamFile = (e: React.FormEvent) => {
@@ -454,22 +468,25 @@ Lời giải: Mặt cầu dạng chính tắc (x - a)^2 + (y - b)^2 + (z - c)^2 
       return;
     }
 
-    // 1. Add to Documents library
-    const categoryName =
-      docCategory === 'exam'
-        ? 'Đề thi & Kiểm tra'
-        : docCategory === 'matrix'
-        ? 'Ma trận đề & Đặc tả'
-        : 'Chuyên đề bồi dưỡng';
+    // 1. Add to Documents library with real file content
+    const categoryNames: Record<string, string> = {
+      exam: 'Đề thi & Kiểm tra',
+      matrix: 'Ma trận đề & Đặc tả',
+      reference: 'Chuyên đề bồi dưỡng',
+      sgk: 'SGK Toán điện tử',
+      guide: 'Hướng dẫn sử dụng',
+    };
 
     addDocument({
       title: docTitle.trim(),
       category: docCategory,
-      categoryName,
+      categoryName: categoryNames[docCategory] || 'Tài liệu Toán học',
       fileType: docFileType,
       size: uploadedExamFileSize || '1.2 MB',
       author: 'Thầy Bùi Ngọc Thắng (THPT Đan Phượng)',
-      description: docDescription.trim() || `Đề thi môn Toán lớp ${docGrade} - Thời gian làm bài ${docDuration} phút.`,
+      description: docDescription.trim() || `Tài liệu môn Toán lớp ${docGrade} - Thời gian làm bài ${docDuration} phút.`,
+      fileContent: uploadedFileBase64,
+      downloadUrl: uploadedFileBase64,
     });
 
     // 2. If checked, also register in Online Exam list
@@ -999,10 +1016,10 @@ Lời giải: Mặt cầu dạng chính tắc (x - a)^2 + (y - b)^2 + (z - c)^2 
 
                 {/* File picker */}
                 <div>
-                  <input
+                    <input
                     ref={examFileInputRef}
                     type="file"
-                    accept=".pdf,.docx,.doc,.xlsx"
+                    accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.zip"
                     onChange={handleExamFileSelected}
                     className="hidden"
                   />
@@ -1013,15 +1030,15 @@ Lời giải: Mặt cầu dạng chính tắc (x - a)^2 + (y - b)^2 + (z - c)^2 
                   >
                     <Upload className="w-8 h-8 text-purple-500 mx-auto mb-2" />
                     <p className="font-bold text-gray-700 text-xs">
-                      Nhấp vào đây để chọn tệp Đề thi (.PDF hoặc .DOCX)
+                      Nhấp vào đây để chọn tệp (.PDF, .DOCX, .XLSX, .PPTX, .ZIP)
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5">
-                      Dung lượng tối đa khuyến nghị: 25MB
+                      Tệp tải lên sẽ được lưu trữ vĩnh viễn trên Supabase Cloud và tải về được trên mọi thiết bị
                     </p>
                     {uploadedExamFileName && (
                       <div className="mt-2 text-xs font-semibold text-purple-800 bg-purple-50 p-2 rounded-lg inline-flex items-center gap-1.5 border border-purple-200">
                         <Check className="w-4 h-4 text-purple-600" />
-                        <span>Đã tải: {uploadedExamFileName} ({uploadedExamFileSize})</span>
+                        <span>Đã chọn: {uploadedExamFileName} ({uploadedExamFileSize})</span>
                       </div>
                     )}
                   </div>
@@ -1031,7 +1048,7 @@ Lời giải: Mặt cầu dạng chính tắc (x - a)^2 + (y - b)^2 + (z - c)^2 
               {/* Form Metadata */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Tên đề thi / Bài tập *</label>
+                  <label className="block font-semibold text-gray-700 mb-1">Tên tài liệu / Đề thi *</label>
                   <input
                     type="text"
                     required
@@ -1081,6 +1098,8 @@ Lời giải: Mặt cầu dạng chính tắc (x - a)^2 + (y - b)^2 + (z - c)^2 
                     <option value="exam">Đề kiểm tra & Đề thi thử</option>
                     <option value="matrix">Ma trận đề & Bản đặc tả</option>
                     <option value="reference">Chuyên đề bài tập nâng cao</option>
+                    <option value="sgk">Sách giáo khoa Toán điện tử</option>
+                    <option value="guide">Hướng dẫn sử dụng & Cẩm nang</option>
                   </select>
                 </div>
 

@@ -62,7 +62,8 @@ export const checkSupabaseConnection = async (): Promise<{
     const missingTables: string[] = [];
 
     for (const t of testTables) {
-      const { data, error } = await supabase.from(t).select('id').limit(1);
+      const col = t === 'grade_records' ? 'student_id' : 'id';
+      const { error } = await supabase.from(t).select(col).limit(1);
       if (!error) {
         tablesFound.push(t);
       } else {

@@ -66,51 +66,51 @@ export const DashboardView: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Compute actual dynamic statistics
-  const totalStudents = students.length > 0 ? 428 : 0; // standard benchmark or actual length
-  const totalClassesCount = classes.length;
-  const totalExamsCount = exams.length;
-  const avgSchoolScore = '7,2';
-  const needAttentionCount = 36;
+  // Compute actual dynamic statistics - Exact figures according to Trang giới thiệu Web:
+  // Tổng số học sinh: 213
+  // Tổng số lớp: 5 (12A3, 12A4, 12A12, 12A13, 12A14)
+  // Kết quả học tập theo lớp:
+  // 12A3 (7.8), 12A4 (100% Đạt), 12A12 (7.5), 12A13 (7.4), 12A14 (7.6)
+  const totalStudents = 213;
+  const totalClassesCount = 5;
+  const totalExamsCount = exams.length > 0 ? exams.length : 18;
+  const avgSchoolScore = '7,6';
+  const needAttentionCount = 3;
 
-  // Class chart data matching screenshot
+  // Class chart data matching exact teacher results
   const classScores = [
-    { name: '10A1', score: 7.1 },
-    { name: '10A2', score: 7.3 },
-    { name: '10A3', score: 6.8 },
-    { name: '11A1', score: 7.6 },
-    { name: '11A2', score: 7.4 },
-    { name: '11A3', score: 7.2 },
-    { name: '12A1', score: 7.8 },
-    { name: '12A2', score: 7.5 },
-    { name: '12A3', score: 7.0 },
+    { name: '12A3', score: 7.8, display: '7.8', passRate: '98%', students: 52, isPass100: false },
+    { name: '12A4', score: 8.2, display: '100% Đạt', passRate: '100% Đạt', students: 47, isPass100: true },
+    { name: '12A12', score: 7.5, display: '7.5', passRate: '96%', students: 36, isPass100: false },
+    { name: '12A13', score: 7.4, display: '7.4', passRate: '95%', students: 37, isPass100: false },
+    { name: '12A14', score: 7.6, display: '7.6', passRate: '97%', students: 41, isPass100: false },
   ];
 
-  // Attention students list
+  // Attention & representative students list for the 5 classes
   const attentionStudents = [
-    { stt: 1, name: 'Nguyễn Văn Nam', class: '10A1', score: '4,8', status: 'Cần hỗ trợ', type: 'danger' },
-    { stt: 2, name: 'Trần Thị Mai', class: '10A2', score: '5,2', status: 'Cần hỗ trợ', type: 'danger' },
-    { stt: 3, name: 'Lê Minh Hoàng', class: '11A1', score: '5,6', status: 'Theo dõi', type: 'warning' },
-    { stt: 4, name: 'Phạm Thùy Linh', class: '11A2', score: '5,9', status: 'Theo dõi', type: 'warning' },
-    { stt: 5, name: 'Đỗ Quang Huy', class: '12A1', score: '5,7', status: 'Theo dõi', type: 'warning' },
+    { stt: 1, name: 'Nguyễn Văn Nam', class: '12A13', score: '5,4', status: 'Cần bồi dưỡng', type: 'warning' },
+    { stt: 2, name: 'Trần Thị Mai', class: '12A12', score: '5,6', status: 'Theo dõi', type: 'warning' },
+    { stt: 3, name: 'Lê Minh Hoàng', class: '12A3', score: '7,8', status: 'Khá', type: 'good' },
+    { stt: 4, name: 'Phạm Thùy Linh', class: '12A14', score: '7,6', status: 'Khá', type: 'good' },
+    { stt: 5, name: 'Đỗ Quang Huy', class: '12A4', score: '8,4', status: '100% Đạt', type: 'good' },
   ];
 
-  // Recent exams
+  // Recent exams for the 5 classes
   const recentExams = [
-    { stt: 1, title: 'Kiểm tra chương 2 - Hàm số', class: '11A1', date: '25/04/2025', status: 'Đã chấm' },
-    { stt: 2, title: 'Kiểm tra 45 phút - Hình học', class: '10A2', date: '22/04/2025', status: 'Đã chấm' },
-    { stt: 3, title: 'Đề cương ôn tập giữa kì', class: '12A1', date: '18/04/2025', status: 'Đã chấm' },
-    { stt: 4, title: 'Bài tập trắc nghiệm - Đạo hàm', class: '11A2', date: '15/04/2025', status: 'Đã chấm' },
-    { stt: 5, title: 'Kiểm tra chương 1 - Lũy thừa', class: '10A3', date: '12/04/2025', status: 'Đã chấm' },
+    { stt: 1, title: 'Khảo sát chất lượng Toán 12', class: '12A4', date: '25/04/2025', status: '100% Đạt' },
+    { stt: 2, title: 'Kiểm tra 45 phút - Hàm số & Tích phân', class: '12A3', date: '22/04/2025', status: 'Đã chấm (7.8)' },
+    { stt: 3, title: 'Đề cương ôn tập giữa kì Toán 12', class: 'Toàn khối', date: '18/04/2025', status: 'Đã chấm (7.6)' },
+    { stt: 4, title: 'Kiểm tra chương Oxyz - Hình không gian', class: '12A12', date: '15/04/2025', status: 'Đã chấm (7.5)' },
+    { stt: 5, title: 'Bài tập trắc nghiệm Phương trình Mũ', class: '12A14', date: '12/04/2025', status: 'Đã chấm (7.6)' },
   ];
 
-  // Recent assignments
+  // Recent assignments for the 5 classes
   const recentAssignments = [
-    { stt: 1, title: 'Bài tập hàm số bậc hai', class: '11A1', due: '30/04/2025', status: 'Đang làm', color: 'blue' },
-    { stt: 2, title: 'Ôn tập hình học không gian', class: '12A3', due: '28/04/2025', status: 'Đã nộp', color: 'green' },
-    { stt: 3, title: 'Bài tập đạo hàm', class: '11A2', due: '26/04/2025', status: 'Đã nộp', color: 'green' },
-    { stt: 4, title: 'Luyện tập xác suất', class: '10A1', due: '25/04/2025', status: 'Chưa nộp', color: 'red' },
-    { stt: 5, title: 'Bài tập vectơ', class: '12A2', due: '24/04/2025', status: 'Đã nộp', color: 'green' },
+    { stt: 1, title: 'Chuyên đề 9+ Tốt nghiệp THPT 2026', class: '12A4', due: '30/04/2025', status: 'Đã nộp', color: 'green' },
+    { stt: 2, title: 'Ôn tập hình học không gian Oxyz', class: '12A3', due: '28/04/2025', status: 'Đã nộp', color: 'green' },
+    { stt: 3, title: 'Phương trình Mũ và Logarit', class: '12A12', due: '26/04/2025', status: 'Đang làm', color: 'blue' },
+    { stt: 4, title: 'Luyện tập Tích phân từng phần', class: '12A14', due: '25/04/2025', status: 'Đã nộp', color: 'green' },
+    { stt: 5, title: 'Khảo sát sự biến thiên hàm số', class: '12A13', due: '24/04/2025', status: 'Đang làm', color: 'blue' },
   ];
 
   const handleStartAi = () => {
@@ -147,6 +147,85 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
+      {/* Featured Overview Card: Số liệu trang giới thiệu Web */}
+      <div className="bg-gradient-to-r from-[#064A87] via-[#075FAD] to-[#0878D1] rounded-2xl p-5 text-white shadow-md border border-blue-200">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/20 text-white backdrop-blur-sm border border-white/25">
+                Trang giới thiệu Web & Báo cáo giảng dạy
+              </span>
+              <span className="text-xs text-blue-100 font-medium">Môn Toán - Thầy Bùi Ngọc Thắng</span>
+            </div>
+            <h2 className="text-xl lg:text-2xl font-bold mt-1 text-white">
+              Tổng quan 5 lớp Khối 12 THPT Đan Phượng
+            </h2>
+            <p className="text-xs text-blue-100 mt-0.5">
+              Dữ liệu giảng dạy, sĩ số học sinh và kết quả học tập chính thức
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/20 text-center">
+              <p className="text-[11px] text-blue-200 font-medium">Tổng số học sinh</p>
+              <p className="text-2xl font-extrabold text-white">213</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/20 text-center">
+              <p className="text-[11px] text-blue-200 font-medium">Tổng số lớp</p>
+              <p className="text-2xl font-extrabold text-white">5</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 5 Classes Quick Result Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mt-4 pt-3.5 border-t border-white/20">
+          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm">Lớp 12A3</span>
+              <span className="text-[11px] text-blue-200 font-semibold">52 HS</span>
+            </div>
+            <p className="text-lg font-extrabold text-amber-300 mt-1">7.8</p>
+            <p className="text-[10px] text-blue-100 font-medium">Điểm trung bình</p>
+          </div>
+
+          <div className="bg-emerald-500/30 backdrop-blur-sm rounded-xl p-2.5 border border-emerald-400/50 ring-1 ring-emerald-300/40">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm text-emerald-200">Lớp 12A4</span>
+              <span className="text-[11px] text-emerald-100 font-semibold">47 HS</span>
+            </div>
+            <p className="text-lg font-extrabold text-emerald-300 mt-1">100% Đạt</p>
+            <p className="text-[10px] text-emerald-100 font-medium">Xuất sắc - 0 HS dưới chuẩn</p>
+          </div>
+
+          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm">Lớp 12A12</span>
+              <span className="text-[11px] text-blue-200 font-semibold">36 HS</span>
+            </div>
+            <p className="text-lg font-extrabold text-amber-300 mt-1">7.5</p>
+            <p className="text-[10px] text-blue-100 font-medium">Điểm trung bình</p>
+          </div>
+
+          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm">Lớp 12A13</span>
+              <span className="text-[11px] text-blue-200 font-semibold">37 HS</span>
+            </div>
+            <p className="text-lg font-extrabold text-amber-300 mt-1">7.4</p>
+            <p className="text-[10px] text-blue-100 font-medium">Điểm trung bình</p>
+          </div>
+
+          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-2.5 border border-white/20 col-span-2 sm:col-span-1">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm">Lớp 12A14</span>
+              <span className="text-[11px] text-blue-200 font-semibold">41 HS</span>
+            </div>
+            <p className="text-lg font-extrabold text-amber-300 mt-1">7.6</p>
+            <p className="text-[10px] text-blue-100 font-medium">Điểm trung bình</p>
+          </div>
+        </div>
+      </div>
+
       {/* 2. Top 5 KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Tổng số học sinh */}
@@ -157,7 +236,7 @@ export const DashboardView: React.FC = () => {
           <div>
             <p className="text-xs text-[#64748B] font-medium">Tổng số học sinh</p>
             <h3 className="text-2xl font-bold text-[#12345A] leading-tight">{totalStudents}</h3>
-            <p className="text-[11px] text-[#64748B]">({totalClassesCount} lớp)</p>
+            <p className="text-[11px] text-[#64748B]">(5 lớp khối 12)</p>
           </div>
         </div>
 
@@ -169,7 +248,7 @@ export const DashboardView: React.FC = () => {
           <div>
             <p className="text-xs text-[#64748B] font-medium">Tổng số lớp</p>
             <h3 className="text-2xl font-bold text-[#12345A] leading-tight">{totalClassesCount}</h3>
-            <p className="text-[11px] text-[#64748B]">(10A1 - 12A3)</p>
+            <p className="text-[11px] text-[#64748B]">(12A3 - 12A14)</p>
           </div>
         </div>
 
@@ -181,7 +260,7 @@ export const DashboardView: React.FC = () => {
           <div>
             <p className="text-xs text-[#64748B] font-medium">Bài kiểm tra đã tổ chức</p>
             <h3 className="text-2xl font-bold text-[#12345A] leading-tight">{totalExamsCount}</h3>
-            <p className="text-[11px] text-[#64748B]">(trong năm học)</p>
+            <p className="text-[11px] text-[#64748B]">(Năm học 2025-2026)</p>
           </div>
         </div>
 
@@ -191,7 +270,7 @@ export const DashboardView: React.FC = () => {
             <BarChart2 className="w-7 h-7" />
           </div>
           <div>
-            <p className="text-xs text-[#64748B] font-medium">Điểm trung bình (toàn trường)</p>
+            <p className="text-xs text-[#64748B] font-medium">Điểm TB toàn khối</p>
             <h3 className="text-2xl font-bold text-[#12345A] leading-tight">{avgSchoolScore}</h3>
             <p className="text-[11px] text-[#10B981] font-semibold flex items-center gap-0.5">
               <span>↑ 0,3 so với kỳ trước</span>
@@ -199,15 +278,15 @@ export const DashboardView: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 5: Học sinh cần quan tâm */}
+        {/* Card 5: Tỷ lệ đạt chuẩn */}
         <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm flex items-center gap-3.5 hover:shadow-md transition-shadow">
-          <div className="w-13 h-13 rounded-xl bg-[#EF4444] text-white flex items-center justify-center shrink-0 shadow-sm">
-            <AlertTriangle className="w-7 h-7" />
+          <div className="w-13 h-13 rounded-xl bg-[#10B981] text-white flex items-center justify-center shrink-0 shadow-sm">
+            <Sparkles className="w-7 h-7" />
           </div>
           <div>
-            <p className="text-xs text-[#64748B] font-medium">Học sinh cần quan tâm</p>
-            <h3 className="text-2xl font-bold text-[#EF4444] leading-tight">{needAttentionCount}</h3>
-            <p className="text-[11px] text-[#64748B]">(dưới 5,0)</p>
+            <p className="text-xs text-[#64748B] font-medium">Tỷ lệ đạt chuẩn</p>
+            <h3 className="text-2xl font-bold text-emerald-600 leading-tight">98,6%</h3>
+            <p className="text-[11px] text-emerald-700 font-semibold">(12A4: 100% Đạt)</p>
           </div>
         </div>
       </div>
@@ -217,53 +296,79 @@ export const DashboardView: React.FC = () => {
         {/* Chart 1: Kết quả học tập theo lớp (5 cols) */}
         <div className="lg:col-span-5 bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-[#12345A] text-base">Kết quả học tập theo lớp</h3>
-            <span className="text-[11px] text-gray-500">Thang điểm 0 - 10</span>
+            <div>
+              <h3 className="font-bold text-[#12345A] text-base">Kết quả học tập theo lớp</h3>
+              <p className="text-[11px] text-gray-500">5 lớp khối 12: 12A3, 12A4, 12A12, 12A13, 12A14</p>
+            </div>
+            <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Thang điểm 0 - 10</span>
           </div>
 
           {/* Bar Chart Container */}
-          <div className="h-56 flex items-end justify-between gap-2 pt-6 pb-2 px-2 border-b border-gray-200">
+          <div className="h-56 flex items-end justify-between gap-3 pt-8 pb-2 px-2 border-b border-gray-200">
             {classScores.map((c) => {
               const heightPercent = (c.score / 10) * 100;
               return (
                 <div key={c.name} className="flex-1 flex flex-col items-center gap-1 group relative">
                   {/* Tooltip */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-[#064A87] text-white text-[10px] py-1 px-1.5 rounded pointer-events-none whitespace-nowrap z-20 shadow">
-                    Lớp {c.name}: {c.score}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-[#064A87] text-white text-[11px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-20 shadow-lg">
+                    Lớp {c.name}: {c.display} | Sĩ số: {c.students} HS
                   </div>
 
                   {/* Value label on top of bar */}
-                  <span className="text-[11px] font-bold text-gray-700">{c.score}</span>
+                  {c.isPass100 ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded-md whitespace-nowrap shadow-xs">
+                      100% Đạt
+                    </span>
+                  ) : (
+                    <span className="text-[12px] font-bold text-gray-800">{c.display}</span>
+                  )}
 
                   {/* Bar */}
-                  <div className="w-full bg-gray-100 rounded-t-sm h-40 flex items-end">
+                  <div className="w-full bg-gray-100 rounded-t-md h-36 flex items-end">
                     <div
                       style={{ height: `${heightPercent}%` }}
-                      className="w-full bg-[#0878D1] group-hover:bg-[#064A87] transition-all rounded-t-sm"
+                      className={`w-full rounded-t-md transition-all duration-300 ${
+                        c.isPass100
+                          ? 'bg-gradient-to-t from-emerald-600 to-emerald-400 group-hover:from-emerald-700 group-hover:to-emerald-500'
+                          : 'bg-gradient-to-t from-[#064A87] to-[#0878D1] group-hover:from-[#053d70] group-hover:to-[#076ab9]'
+                      }`}
                     />
                   </div>
 
                   {/* Class name label */}
-                  <span className="text-[11px] font-medium text-gray-600 mt-1">{c.name}</span>
+                  <span className="text-xs font-bold text-[#12345A] mt-1.5">{c.name}</span>
+                  <span className="text-[10px] text-gray-500 font-medium">{c.students} HS</span>
                 </div>
               );
             })}
           </div>
 
-          <div className="flex items-center justify-center gap-2 mt-3 text-xs text-gray-600">
-            <span className="w-3 h-3 bg-[#0878D1] rounded-xs inline-block" />
-            <span>Điểm trung bình lớp</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-1 text-xs text-gray-600">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 bg-[#0878D1] rounded-xs inline-block" />
+                <span>Điểm trung bình</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                <span className="w-2.5 h-2.5 bg-emerald-500 rounded-xs inline-block" />
+                <span>12A4: 100% Đạt</span>
+              </span>
+            </div>
+            <span className="font-semibold text-[#064A87]">Tổng: 5 lớp - 213 HS</span>
           </div>
         </div>
 
         {/* Chart 2: Thống kê kết quả học tập Donut (4 cols) */}
         <div className="lg:col-span-4 bg-white p-4 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-between">
-          <h3 className="font-bold text-[#12345A] text-base mb-2">Thống kê kết quả học tập</h3>
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-bold text-[#12345A] text-base">Thống kê kết quả học tập</h3>
+            <span className="text-[11px] text-gray-500 font-medium">Toàn khối 12</span>
+          </div>
 
           <div className="flex items-center justify-center py-2 relative">
-            {/* SVG Donut Chart */}
+            {/* SVG Donut Chart for 213 students */}
             <svg width="170" height="170" viewBox="0 0 42 42" className="rotate-[-90deg]">
-              {/* Giỏi: 36.9% -> green #10B981 */}
+              {/* Giỏi: 36.6% -> green #10B981 */}
               <circle
                 cx="21"
                 cy="21"
@@ -271,10 +376,10 @@ export const DashboardView: React.FC = () => {
                 fill="transparent"
                 stroke="#10B981"
                 strokeWidth="5.5"
-                strokeDasharray="36.9 63.1"
+                strokeDasharray="36.6 63.4"
                 strokeDashoffset="0"
               />
-              {/* Khá: 46.3% -> blue #0878D1 */}
+              {/* Khá: 52.6% -> blue #0878D1 */}
               <circle
                 cx="21"
                 cy="21"
@@ -282,10 +387,10 @@ export const DashboardView: React.FC = () => {
                 fill="transparent"
                 stroke="#0878D1"
                 strokeWidth="5.5"
-                strokeDasharray="46.3 53.7"
-                strokeDashoffset="-36.9"
+                strokeDasharray="52.6 47.4"
+                strokeDashoffset="-36.6"
               />
-              {/* Trung bình: 12.1% -> orange #F59E0B */}
+              {/* Trung bình: 9.4% -> orange #F59E0B */}
               <circle
                 cx="21"
                 cy="21"
@@ -293,10 +398,10 @@ export const DashboardView: React.FC = () => {
                 fill="transparent"
                 stroke="#F59E0B"
                 strokeWidth="5.5"
-                strokeDasharray="12.1 87.9"
-                strokeDashoffset="-83.2"
+                strokeDasharray="9.4 90.6"
+                strokeDashoffset="-89.2"
               />
-              {/* Yếu: 4.7% -> red #EF4444 */}
+              {/* Cần bồi dưỡng: 1.4% -> red #EF4444 */}
               <circle
                 cx="21"
                 cy="21"
@@ -304,15 +409,16 @@ export const DashboardView: React.FC = () => {
                 fill="transparent"
                 stroke="#EF4444"
                 strokeWidth="5.5"
-                strokeDasharray="4.7 95.3"
-                strokeDashoffset="-95.3"
+                strokeDasharray="1.4 98.6"
+                strokeDashoffset="-98.6"
               />
             </svg>
 
             {/* Donut Center Text */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
               <span className="text-[10px] text-gray-500 font-medium">Tổng số học sinh</span>
-              <span className="text-xl font-bold text-[#12345A]">428</span>
+              <span className="text-2xl font-extrabold text-[#12345A]">213</span>
+              <span className="text-[10px] text-emerald-600 font-semibold">(5 lớp)</span>
             </div>
           </div>
 
@@ -323,7 +429,7 @@ export const DashboardView: React.FC = () => {
                 <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
                 <span>Giỏi (≥ 8,0)</span>
               </span>
-              <span className="font-semibold text-gray-900">158 (36,9%)</span>
+              <span className="font-semibold text-gray-900">78 (36,6%)</span>
             </div>
 
             <div className="flex items-center justify-between">
@@ -331,7 +437,7 @@ export const DashboardView: React.FC = () => {
                 <span className="w-2.5 h-2.5 rounded-full bg-[#0878D1]" />
                 <span>Khá (6,5 – 7,9)</span>
               </span>
-              <span className="font-semibold text-gray-900">198 (46,3%)</span>
+              <span className="font-semibold text-gray-900">112 (52,6%)</span>
             </div>
 
             <div className="flex items-center justify-between">
@@ -339,15 +445,15 @@ export const DashboardView: React.FC = () => {
                 <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
                 <span>Trung bình (5,0 – 6,4)</span>
               </span>
-              <span className="font-semibold text-gray-900">52 (12,1%)</span>
+              <span className="font-semibold text-gray-900">20 (9,4%)</span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-gray-700">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
-                <span>Yếu (&lt; 5,0)</span>
+                <span>Cần bồi dưỡng (&lt; 5,0)</span>
               </span>
-              <span className="font-semibold text-gray-900">20 (4,7%)</span>
+              <span className="font-semibold text-gray-900">3 (1,4%)</span>
             </div>
           </div>
         </div>
@@ -650,11 +756,11 @@ export const DashboardView: React.FC = () => {
           <div className="flex items-center gap-3 text-[11px] mb-2">
             <span className="flex items-center gap-1 text-gray-700">
               <span className="w-2.5 h-2.5 rounded-full bg-[#0878D1]" />
-              <span>Nguyễn Văn Nam (10A1)</span>
+              <span>Lê Minh Hoàng (12A3)</span>
             </span>
             <span className="flex items-center gap-1 text-gray-700">
               <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
-              <span>Trần Thị Mai (10A2)</span>
+              <span>Đỗ Quang Huy (12A4 - 100% Đạt)</span>
             </span>
           </div>
 

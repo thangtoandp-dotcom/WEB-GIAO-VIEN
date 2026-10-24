@@ -1471,14 +1471,35 @@ export const ClassStudentView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">
-                  Dán nội dung CSV hoặc kéo thả tệp vào đây
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-gray-700">
+                    Nội dung danh sách học sinh (CSV)
+                  </label>
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Chọn tệp .CSV từ máy tính</span>
+                    <input
+                      type="file"
+                      accept=".csv,.txt"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const content = (event.target?.result as string) || '';
+                          handleParseCsv(content);
+                        };
+                        reader.readAsText(file);
+                      }}
+                    />
+                  </label>
+                </div>
                 <textarea
                   rows={6}
                   value={importCsvText}
                   onChange={(e) => handleParseCsv(e.target.value)}
-                  placeholder="Dán các dòng CSV tại đây... Ví dụ:&#10;Mã HS,Họ và tên,Lớp,Giới tính,SĐT,Điểm TB,Ghi chú&#10;HS1021,Trần Bảo Anh,10A1,Nữ,0912345678,7.5,Chăm chỉ"
+                  placeholder="Dán các dòng CSV tại đây hoặc bấm 'Chọn tệp .CSV từ máy tính'... Ví dụ:&#10;Mã HS,Họ và tên,Lớp,Giới tính,SĐT,Điểm TB,Ghi chú&#10;HS1021,Trần Bảo Anh,10A1,Nữ,0912345678,7.5,Chăm chỉ"
                   className="w-full p-2.5 font-mono text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0878D1]"
                 />
               </div>

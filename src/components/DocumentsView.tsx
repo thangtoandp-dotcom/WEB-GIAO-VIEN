@@ -11,13 +11,16 @@ import {
   HelpCircle,
   Eye,
   X,
+  Trash2,
+  FileCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DocItem } from '../types';
 import { UploadExamModal } from './UploadExamModal';
+import { downloadFile } from '../lib/fileUtils';
 
 export const DocumentsView: React.FC = () => {
-  const { documents } = useApp();
+  const { documents, deleteDocument } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -33,15 +36,18 @@ export const DocumentsView: React.FC = () => {
   });
 
   const handleDownload = (doc: DocItem) => {
-    // Generate a downloadable document representation
+    const safeTitle = doc.title.replace(/[/\\?%*:|"<>]/g, '_').replace(/\s+/g, '_');
+    const ext = doc.fileType ? doc.fileType.toLowerCase() : 'pdf';
+
+    // If real uploaded file data exists, download the genuine binary file!
+    if (doc.fileContent && doc.fileContent.startsWith('data:')) {
+      downloadFile(doc.fileContent, `${safeTitle}.${ext}`);
+      return;
+    }
+
+    // Fallback: Generate structured study document representation
     const content = `TOÁN HỌC CÙNG THẦY THẮNG - TRƯỜNG THPT ĐAN PHƯỢNG\n\nTài liệu: ${doc.title}\nPhân loại: ${doc.categoryName}\nTác giả: ${doc.author}\nNgày cập nhật: ${doc.updatedDate}\n\nMô tả chi tiết:\n${doc.description}\n\n© 2026 - Thầy Bùi Ngọc Thắng (Trường THPT Đan Phượng)`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${doc.title.replace(/\s+/g, '_')}.${doc.fileType.toLowerCase() === 'docx' ? 'txt' : 'txt'}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadFile(content, `${safeTitle}.txt`, 'text/plain');
   };
 
   return (
@@ -197,6 +203,12 @@ export const DocumentsView: React.FC = () => {
               <span className="text-[11px] text-gray-400">Cập nhật: {doc.updatedDate}</span>
 
               <div className="flex items-center gap-2">
+                {doc.fileContent && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <FileCheck className="w-3 h-3" />
+                    <span>Tệp gốc</span>
+                  </span>
+                )}
                 <button
                   onClick={() => setViewingDoc(doc)}
                   className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold flex items-center gap-1"
@@ -210,6 +222,17 @@ export const DocumentsView: React.FC = () => {
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Tải về</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Thầy có muốn xóa tài liệu "${doc.title}" khỏi hệ thống và Supabase không?`)) {
+                      deleteDocument(doc.id);
+                    }
+                  }}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  title="Xóa tài liệu này"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -241,6 +264,12 @@ export const DocumentsView: React.FC = () => {
               <div>
                 <span className="font-bold text-gray-800">Định dạng & Dung lượng:</span> {viewingDoc.fileType} • {viewingDoc.size}
               </div>
+              {viewingDoc.fileContent && (
+                <div className="flex items-center gap-2 p-2 bg-emerald-50 rounded-lg text-emerald-800 border border-emerald-200">
+                  <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Tệp đính kèm gốc sẵn sàng tải về với nội dung đầy đủ.</span>
+                </div>
+              )}
               <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200 text-gray-800 font-serif">
                 <p className="font-bold text-[#064A87] mb-1">Nội dung tóm tắt:</p>
                 <p>{viewingDoc.description}</p>

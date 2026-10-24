@@ -37,14 +37,23 @@ import {
   mapStudentToDB,
   mapStudentFromDB,
   mapQuestionToDB,
+  mapQuestionFromDB,
   mapExamToDB,
+  mapExamFromDB,
   mapGradeRecordToDB,
   mapGradeRecordFromDB,
   mapAttendanceToDB,
+  mapAttendanceFromDB,
   mapDocumentToDB,
+  mapDocumentFromDB,
   mapGameToDB,
+  mapGameFromDB,
   mapActivityToDB,
+  mapActivityFromDB,
   mapTeacherProfileToDB,
+  mapTeacherProfileFromDB,
+  mapSubmissionToDB,
+  mapSubmissionFromDB,
 } from '../lib/supabaseService';
 
 
@@ -191,8 +200,28 @@ const CUSTOMIZED_KEY = `${STORAGE_KEY}_is_customized`;
 const safeSetStorage = (key: string, val: any) => {
   try {
     localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
-  } catch (e) {
+  } catch (e: any) {
     console.warn(`localStorage save failed for ${key}:`, e);
+    // If quota exceeded due to large base64 file payloads, strip large data URLs for local fallback
+    if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+      try {
+        if (Array.isArray(val)) {
+          const slim = val.map((item: any) => {
+            if (item && typeof item === 'object') {
+              const copy = { ...item };
+              if (copy.fileContent && copy.fileContent.length > 500) {
+                copy.fileContent = '';
+              }
+              return copy;
+            }
+            return item;
+          });
+          localStorage.setItem(key, JSON.stringify(slim));
+        }
+      } catch {
+        // Supabase has the true persistent data
+      }
+    }
   }
 };
 
@@ -221,13 +250,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAuthenticated(true);
     setCurrentRole(role);
     safeSetStorage(`${STORAGE_KEY}_is_authenticated`, 'true');
+    // Ensure fresh pull from Supabase Cloud on login
+    checkSupabaseHealth();
     return true;
   };
 
   const [classes, setClasses] = useState<ClassRoom[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_classes`);
-      if (saved !== null) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (
+          Array.isArray(parsed) &&
+          parsed.length === 5 &&
+          parsed.some((c: any) => c.name === '12A12') &&
+          parsed.find((c: any) => c.name === '12A3')?.totalStudents === 52
+        ) {
+          return parsed;
+        }
+      }
       return INITIAL_CLASSES;
     } catch {
       return INITIAL_CLASSES;
@@ -438,10 +479,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 1. Sync classes from Supabase Cloud
         try {
           const { data: dbClasses, error: errCls } = await supabase.from('classes').select('*');
-          if (!errCls && dbClasses && dbClasses.length > 0) {
+          const hasNew5Classes =
+            dbClasses &&
+            dbClasses.length === 5 &&
+            dbClasses.some((c: any) => c.name === '12A12') &&
+            dbClasses.find((c: any) => c.name === '12A3')?.total_students === 52;
+          if (!errCls && dbClasses && hasNew5Classes) {
             const mappedCls = dbClasses.map(mapClassFromDB);
             setClasses(mappedCls);
             safeSetStorage(`${STORAGE_KEY}_classes`, mappedCls);
+          } else if (!errCls) {
+            // Push exact 5 Grade 12 classes to Supabase
+            await supabase.from('classes').upsert(INITIAL_CLASSES.map(mapClassToDB), { onConflict: 'id' });
+            if (dbClasses && dbClasses.length > 5) {
+              const extraIds = dbClasses.map((c: any) => c.id).filter((id: string) => !INITIAL_CLASSES.some(ic => ic.id === id));
+              if (extraIds.length > 0) {
+                await supabase.from('classes').delete().in('id', extraIds);
+              }
+            }
+            setClasses(INITIAL_CLASSES);
+            safeSetStorage(`${STORAGE_KEY}_classes`, INITIAL_CLASSES);
           }
         } catch (clsErr) {
           console.warn('Supabase classes load notice:', clsErr);
@@ -456,7 +513,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             safeSetStorage(`${STORAGE_KEY}_students`, mapped);
             safeSetStorage(CUSTOMIZED_KEY, 'true');
 
-            // Also load corresponding grade records
+            // Grade records
             const { data: dbGrades, error: errGrades } = await supabase.from('grade_records').select('*').limit(1000);
             if (!errGrades && dbGrades !== null) {
               const mappedGrades = dbGrades.map(mapGradeRecordFromDB);
@@ -466,6 +523,137 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         } catch (cloudErr) {
           console.warn('Supabase students load notice:', cloudErr);
+        }
+
+        // 3. Sync Documents from Supabase Cloud (uploaded files across all browsers)
+        try {
+          const { data: dbDocs, error: errDocs } = await supabase
+            .from('documents')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!errDocs && dbDocs && dbDocs.length > 0) {
+            const mappedDocs = dbDocs.map(mapDocumentFromDB);
+            setDocuments(mappedDocs);
+            safeSetStorage(`${STORAGE_KEY}_documents`, mappedDocs);
+          } else if (!errDocs && (!dbDocs || dbDocs.length === 0)) {
+            await supabase.from('documents').upsert(INITIAL_DOCUMENTS.map(mapDocumentToDB), { onConflict: 'id' });
+          }
+        } catch (docErr) {
+          console.warn('Supabase documents load notice:', docErr);
+        }
+
+        // 4. Sync Exams from Supabase Cloud
+        try {
+          const { data: dbExams, error: errExams } = await supabase
+            .from('exams')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!errExams && dbExams && dbExams.length > 0) {
+            const mappedExams = dbExams.map(mapExamFromDB);
+            setExams(mappedExams);
+            safeSetStorage(`${STORAGE_KEY}_exams`, mappedExams);
+          } else if (!errExams && (!dbExams || dbExams.length === 0)) {
+            await supabase.from('exams').upsert(INITIAL_EXAMS.map(mapExamToDB), { onConflict: 'id' });
+          }
+        } catch (examErr) {
+          console.warn('Supabase exams load notice:', examErr);
+        }
+
+        // 5. Sync Questions Bank from Supabase Cloud
+        try {
+          const { data: dbQuestions, error: errQuestions } = await supabase
+            .from('questions')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(500);
+          if (!errQuestions && dbQuestions && dbQuestions.length > 0) {
+            const mappedQs = dbQuestions.map(mapQuestionFromDB);
+            setQuestions(mappedQs);
+            safeSetStorage(`${STORAGE_KEY}_questions`, mappedQs);
+          } else if (!errQuestions && (!dbQuestions || dbQuestions.length === 0)) {
+            await supabase.from('questions').upsert(INITIAL_QUESTIONS.map(mapQuestionToDB), { onConflict: 'id' });
+          }
+        } catch (qErr) {
+          console.warn('Supabase questions load notice:', qErr);
+        }
+
+        // 6. Sync Games from Supabase Cloud (custom uploads & built-in games)
+        try {
+          const { data: dbGames, error: errGames } = await supabase
+            .from('games')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!errGames && dbGames && dbGames.length > 0) {
+            const mappedGames = dbGames.map(mapGameFromDB);
+            setGames(mappedGames);
+            safeSetStorage(`${STORAGE_KEY}_games`, mappedGames);
+          } else if (!errGames && (!dbGames || dbGames.length === 0)) {
+            await supabase.from('games').upsert(INITIAL_GAMES.map(mapGameToDB), { onConflict: 'id' });
+          }
+        } catch (gameErr) {
+          console.warn('Supabase games load notice:', gameErr);
+        }
+
+        // 7. Sync Class Activities & STEM Projects from Supabase Cloud
+        try {
+          const { data: dbActs, error: errActs } = await supabase
+            .from('class_activities')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!errActs && dbActs && dbActs.length > 0) {
+            const mappedActs = dbActs.map(mapActivityFromDB);
+            setActivities(mappedActs);
+            safeSetStorage(`${STORAGE_KEY}_activities`, mappedActs);
+          } else if (!errActs && (!dbActs || dbActs.length === 0)) {
+            await supabase.from('class_activities').upsert(INITIAL_ACTIVITIES.map(mapActivityToDB), { onConflict: 'id' });
+          }
+        } catch (actErr) {
+          console.warn('Supabase activities load notice:', actErr);
+        }
+
+        // 8. Sync Attendance Sessions from Supabase Cloud
+        try {
+          const { data: dbAtt, error: errAtt } = await supabase
+            .from('attendance_sessions')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!errAtt && dbAtt && dbAtt.length > 0) {
+            const mappedAtt = dbAtt.map(mapAttendanceFromDB);
+            setAttendanceSessions(mappedAtt);
+            safeSetStorage(`${STORAGE_KEY}_attendance`, mappedAtt);
+          }
+        } catch (attErr) {
+          console.warn('Supabase attendance load notice:', attErr);
+        }
+
+        // 9. Sync Teacher Profile from Supabase Cloud
+        try {
+          const { data: dbProf, error: errProf } = await supabase
+            .from('teacher_profile')
+            .select('*')
+            .limit(1);
+          if (!errProf && dbProf && dbProf.length > 0) {
+            const mappedProf = mapTeacherProfileFromDB(dbProf[0]);
+            setTeacherProfile(mappedProf);
+            safeSetStorage(`${STORAGE_KEY}_profile`, mappedProf);
+          }
+        } catch (profErr) {
+          console.warn('Supabase profile load notice:', profErr);
+        }
+
+        // 10. Sync Exam Submissions from Supabase Cloud
+        try {
+          const { data: dbSubs, error: errSubs } = await supabase
+            .from('exam_submissions')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!errSubs && dbSubs && dbSubs.length > 0) {
+            const mappedSubs = dbSubs.map(mapSubmissionFromDB);
+            setSubmissions(mappedSubs);
+            safeSetStorage(`${STORAGE_KEY}_submissions`, mappedSubs);
+          }
+        } catch (subErr) {
+          console.warn('Supabase submissions load notice:', subErr);
         }
       } else {
         setSupabaseStatus('tables_missing');
@@ -521,6 +709,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (res.data.games) setGames(res.data.games);
         if (res.data.activities) setActivities(res.data.activities);
         if (res.data.teacherProfile) setTeacherProfile(res.data.teacherProfile);
+        if (res.data.submissions) setSubmissions(res.data.submissions);
         setSupabaseStatus('connected');
       }
       return { success: res.success, message: res.message };
@@ -529,10 +718,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Helper for background Supabase persistence without throwing
+  // Helper for background Supabase persistence with error logging
   const silentBgSync = (promise: PromiseLike<any>) => {
     promise.then(
-      () => {},
+      (res: any) => {
+        if (res && res.error) {
+          console.error('Supabase persistence error:', res.error);
+        }
+      },
       (err) => {
         console.warn('Supabase sync note:', err);
       }
@@ -833,7 +1026,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       avgScore: 0,
     };
     setExams((prev) => [newExam, ...prev]);
-    silentBgSync(supabase.from('exams').insert([mapExamToDB(newExam)]));
+    silentBgSync(supabase.from('exams').upsert([mapExamToDB(newExam)], { onConflict: 'id' }));
   };
 
   const updateExam = (id: string, updates: Partial<Exam>) => {
@@ -856,7 +1049,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedDate: new Date().toLocaleDateString('vi-VN'),
     };
     setDocuments((prev) => [newDoc, ...prev]);
-    silentBgSync(supabase.from('documents').insert([mapDocumentToDB(newDoc)]));
+    silentBgSync(supabase.from('documents').upsert([mapDocumentToDB(newDoc)], { onConflict: 'id' }));
   };
 
   const deleteDocument = (id: string) => {
@@ -875,7 +1068,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       author: game.author || 'Thầy Bùi Ngọc Thắng',
     };
     setGames((prev) => [newGame, ...prev]);
-    silentBgSync(supabase.from('games').insert([mapGameToDB(newGame)]));
+    silentBgSync(supabase.from('games').upsert([mapGameToDB(newGame)], { onConflict: 'id' }));
   };
 
   const deleteGame = (gameId: string) => {
@@ -904,7 +1097,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdDate: new Date().toLocaleDateString('vi-VN'),
     };
     setActivities((prev) => [newAct, ...prev]);
-    silentBgSync(supabase.from('class_activities').insert([mapActivityToDB(newAct)]));
+    silentBgSync(supabase.from('class_activities').upsert([mapActivityToDB(newAct)], { onConflict: 'id' }));
   };
 
   const updateActivity = (id: string, updates: Partial<ClassActivity>) => {

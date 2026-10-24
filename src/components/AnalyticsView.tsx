@@ -30,32 +30,32 @@ export const AnalyticsView: React.FC = () => {
     { topic: 'Xác suất và Thống kê', avg: 6.8, goodRate: '60%', passRate: '85%', needFocus: false },
   ];
 
-  // Top improving students
+  // Top improving students for the 5 Grade 12 classes
   const topImprovingStudents = [
-    { name: 'Nguyễn Văn Nam', class: '10A1', initial: 4.0, latest: 5.5, improvement: '+1.5', status: 'Tiến bộ vượt bậc' },
-    { name: 'Lê Minh Hoàng', class: '11A1', initial: 5.2, latest: 6.5, improvement: '+1.3', status: 'Tiến bộ rõ rệt' },
-    { name: 'Đỗ Quang Huy', class: '12A1', initial: 5.4, latest: 6.4, improvement: '+1.0', status: 'Tiến bộ khá' },
-    { name: 'Trần Thị Mai', class: '10A2', initial: 4.8, latest: 5.6, improvement: '+0.8', status: 'Đang duy trì đà tăng' },
-    { name: 'Bùi Phương Thảo', class: '12A2', initial: 7.8, latest: 8.5, improvement: '+0.7', status: 'Vững vàng học lực giỏi' },
+    { name: 'Đỗ Quang Huy', class: '12A4', initial: 7.2, latest: 8.5, improvement: '+1.3', status: 'Tiến bộ xuất sắc (100% Đạt)' },
+    { name: 'Lê Minh Hoàng', class: '12A3', initial: 6.8, latest: 7.8, improvement: '+1.0', status: 'Tiến bộ vững vàng' },
+    { name: 'Trần Thị Mai', class: '12A12', initial: 5.2, latest: 6.0, improvement: '+0.8', status: 'Đang duy trì đà tăng' },
+    { name: 'Bùi Phương Thảo', class: '12A14', initial: 7.0, latest: 7.6, improvement: '+0.6', status: 'Vững vàng học lực khá' },
+    { name: 'Nguyễn Văn Nam', class: '12A13', initial: 5.0, latest: 5.8, improvement: '+0.8', status: 'Nỗ lực phụ đạo' },
   ];
 
-  // At risk students requiring intervention
+  // At risk students requiring intervention (12A4 has 100% passing)
   const urgentInterventionStudents = [
-    { name: 'Nguyễn Văn Nam', class: '10A1', avg: 4.8, weakPoint: 'Vectơ, Bất phương trình', recommendation: 'Phụ đạo phương pháp tọa độ mặt phẳng thứ Năm hàng tuần.' },
-    { name: 'Trần Thị Mai', class: '10A2', avg: 5.2, weakPoint: 'Hàm số bậc hai, Biến đổi dấu', recommendation: 'Rèn luyện thêm bài tập trắc nghiệm nhận diện đồ thị.' },
-    { name: 'Lê Minh Hoàng', class: '11A1', avg: 5.6, weakPoint: 'Hình học không gian', recommendation: 'Sử dụng mô hình 3D trực quan khi giải góc & khoảng cách.' },
-    { name: 'Phạm Thùy Linh', class: '11A2', avg: 5.9, weakPoint: 'Kỹ năng làm nhanh trắc nghiệm', recommendation: 'Hướng dẫn kỹ thuật bấm máy tính Casio FX-580VNX.' },
-    { name: 'Đỗ Quang Huy', class: '12A1', avg: 5.7, weakPoint: 'Tích phân & Oxyz', recommendation: 'Luyện theo từng dạng đề thi tốt nghiệp THPT chuẩn hóa.' },
+    { name: 'Nguyễn Văn Nam', class: '12A13', avg: 5.4, weakPoint: 'Hình không gian Oxyz', recommendation: 'Phụ đạo phương pháp tọa độ không gian thứ Năm hàng tuần.' },
+    { name: 'Trần Thị Mai', class: '12A12', avg: 5.6, weakPoint: 'Mũ & Logarit', recommendation: 'Rèn luyện thêm bài tập trắc nghiệm nhận diện đồ thị.' },
+    { name: 'Đặng Tuấn Kiệt', class: '12A12', avg: 7.5, weakPoint: 'Kỹ năng làm nhanh trắc nghiệm', recommendation: 'Hướng dẫn kỹ thuật bấm máy tính Casio FX-580VNX.' },
+    { name: 'Lê Minh Hoàng', class: '12A3', avg: 7.8, weakPoint: 'Tích phân vận dụng cao', recommendation: 'Luyện theo từng dạng đề thi tốt nghiệp THPT chuẩn hóa.' },
+    { name: 'Phạm Thùy Linh', class: '12A14', avg: 7.6, weakPoint: 'Xác suất & Tổ hợp', recommendation: 'Ôn tập công thức nhân, cộng xác suất và sơ đồ hình cây.' },
   ];
 
-  // Score distribution brackets (Phổ điểm)
+  // Score distribution brackets (Phổ điểm 213 học sinh)
   const scoreBrackets = [
-    { range: '0 - 2.9', count: 2, percent: '0.5%' },
-    { range: '3.0 - 4.9', count: 18, percent: '4.2%' },
-    { range: '5.0 - 6.4', count: 52, percent: '12.1%' },
-    { range: '6.5 - 7.9', count: 198, percent: '46.3%' },
-    { range: '8.0 - 8.9', count: 116, percent: '27.1%' },
-    { range: '9.0 - 10', count: 42, percent: '9.8%' },
+    { range: '0 - 2.9', count: 0, percent: '0%' },
+    { range: '3.0 - 4.9', count: 3, percent: '1.4%' },
+    { range: '5.0 - 6.4', count: 20, percent: '9.4%' },
+    { range: '6.5 - 7.9', count: 112, percent: '52.6%' },
+    { range: '8.0 - 8.9', count: 56, percent: '26.3%' },
+    { range: '9.0 - 10', count: 22, percent: '10.3%' },
   ];
 
   return (
@@ -70,14 +70,14 @@ export const AnalyticsView: React.FC = () => {
             </h2>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
-            Dữ liệu phân tích thực tế học kỳ 2 (2025-2026) - Trường THPT Đan Phượng
+            Dữ liệu phân tích 5 lớp khối 12 (213 học sinh: 12A3, 12A4, 12A12, 12A13, 12A14) - THPT Đan Phượng
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 shadow-xs cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>In báo cáo</span>
@@ -89,26 +89,26 @@ export const AnalyticsView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
           <p className="text-xs text-gray-500">Tỷ lệ đạt chuẩn (&ge; 5.0)</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">95.3%</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">408 / 428 học sinh</p>
+          <p className="text-2xl font-bold text-emerald-600 mt-1">98.6%</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">210 / 213 HS (12A4: 100% Đạt)</p>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
           <p className="text-xs text-gray-500">Tỷ lệ Giỏi (&ge; 8.0)</p>
-          <p className="text-2xl font-bold text-[#0878D1] mt-1">36.9%</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">158 học sinh xuất sắc</p>
+          <p className="text-2xl font-bold text-[#0878D1] mt-1">36.6%</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">78 học sinh xuất sắc</p>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
           <p className="text-xs text-gray-500">Tỷ lệ nộp bài tập đúng hạn</p>
-          <p className="text-2xl font-bold text-purple-600 mt-1">92.4%</p>
+          <p className="text-2xl font-bold text-purple-600 mt-1">96.2%</p>
           <p className="text-[11px] text-gray-400 mt-0.5">Trong 5 tuần giảng dạy</p>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
           <p className="text-xs text-gray-500">Học sinh cần phụ đạo trọng điểm</p>
-          <p className="text-2xl font-bold text-red-500 mt-1">36 em</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Có kế hoạch kèm cặp cụ thể</p>
+          <p className="text-2xl font-bold text-amber-500 mt-1">3 em</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">12A13 & 12A12 (Lớp 12A4: 0 em)</p>
         </div>
       </div>
 

@@ -10,6 +10,7 @@ import {
   GameItem,
   ClassActivity,
   TeacherProfile,
+  ExamSubmission,
 } from '../types';
 
 // ==========================================
@@ -248,7 +249,7 @@ export const mapGameToDB = (g: GameItem) => ({
   description: g.description,
   category: g.category,
   category_name: g.categoryName,
-  grade: g.grade,
+  grade: g.grade !== undefined && g.grade !== null ? String(g.grade) : 'all',
   difficulty: g.difficulty,
   estimated_minutes: g.estimatedMinutes,
   plays_count: g.playsCount,
@@ -354,6 +355,36 @@ export const mapTeacherProfileFromDB = (row: any): TeacherProfile => ({
   phone: row.phone,
   avatarUrl: row.avatar_url,
   bio: row.bio,
+});
+
+export const mapSubmissionToDB = (s: ExamSubmission) => ({
+  id: s.id,
+  exam_id: s.examId,
+  student_id: s.studentId,
+  student_name: s.studentName,
+  class_name: s.className,
+  submitted_at: s.submittedAt,
+  answers: s.answers || {},
+  auto_score: s.autoScore || 0,
+  essay_score: s.essayScore || 0,
+  total_score: s.totalScore || 0,
+  status: s.status || 'submitted',
+  teacher_feedback: s.teacherFeedback || null,
+});
+
+export const mapSubmissionFromDB = (row: any): ExamSubmission => ({
+  id: row.id,
+  examId: row.exam_id,
+  studentId: row.student_id,
+  studentName: row.student_name,
+  className: row.class_name,
+  submittedAt: row.submitted_at,
+  answers: row.answers || {},
+  autoScore: Number(row.auto_score) || 0,
+  essayScore: Number(row.essay_score) || 0,
+  totalScore: Number(row.total_score) || 0,
+  status: row.status || 'submitted',
+  teacherFeedback: row.teacher_feedback,
 });
 
 // ==========================================
@@ -495,6 +526,7 @@ export const pullAllDataFromSupabase = async (): Promise<{
     games: GameItem[];
     activities: ClassActivity[];
     teacherProfile: TeacherProfile;
+    submissions: ExamSubmission[];
   }>;
 }> => {
   try {
@@ -558,6 +590,12 @@ export const pullAllDataFromSupabase = async (): Promise<{
     const { data: dbProfile, error: errProfile } = await supabase.from('teacher_profile').select('*').limit(1);
     if (!errProfile && dbProfile && dbProfile.length > 0) {
       result.teacherProfile = mapTeacherProfileFromDB(dbProfile[0]);
+    }
+
+    // 11. Submissions
+    const { data: dbSubs, error: errSubs } = await supabase.from('exam_submissions').select('*');
+    if (!errSubs && dbSubs && dbSubs.length > 0) {
+      result.submissions = dbSubs.map(mapSubmissionFromDB);
     }
 
     const fetchedCount = Object.keys(result).length;
