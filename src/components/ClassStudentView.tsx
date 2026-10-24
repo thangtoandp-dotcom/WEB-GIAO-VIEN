@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Users,
   Plus,
@@ -24,7 +24,11 @@ import {
   Square,
   RotateCcw,
   Check,
+  FileCheck2,
+  HelpCircle,
+  Layers,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { Student, ClassRoom, GradeLevel } from '../types';
 
@@ -94,10 +98,20 @@ export const ClassStudentView: React.FC = () => {
   const [editStPhone, setEditStPhone] = useState('');
   const [editStNotes, setEditStNotes] = useState('');
 
-  // Import Modal State
+  // Excel & CSV Import States
+  const [importTab, setImportTab] = useState<'excel' | 'paste'>('excel');
+  const [uploadedFileName, setUploadedFileName] = useState<string>('');
+  const [uploadedFileSize, setUploadedFileSize] = useState<string>('');
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
+  const [rawWorkbook, setRawWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [targetImportClassId, setTargetImportClassId] = useState<string>('auto');
   const [importCsvText, setImportCsvText] = useState('');
   const [importPreviewList, setImportPreviewList] = useState<Partial<Student>[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Remarks edit state in Dossier
   const [editingRemarks, setEditingRemarks] = useState('');
@@ -262,13 +276,47 @@ export const ClassStudentView: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Download Genuine Excel (.xlsx) Template with styling & widths
+  const handleDownloadSampleExcel = () => {
+    const wsData = [
+      ['TRƯỜNG THPT ĐAN PHƯỢNG - HỆ THỐNG QUẢN LÝ TOÁN HỌC'],
+      ['DANH SÁCH HỌC SINH MẪU NHẬP EXCEL (DÙNG ĐỂ TẢI LÊN)'],
+      ['Lưu ý: Thầy/cô có thể giữ nguyên cột hoặc thay đổi lớp. Hệ thống tự động nhận diện các cột.'],
+      [''],
+      ['Mã học sinh', 'Họ và tên', 'Lớp', 'Giới tính', 'Ngày sinh', 'Số điện thoại', 'Điểm TB', 'Ghi chú sư phạm'],
+      ['HS1201', 'Vũ Đức Trí', '12A3', 'Nam', '2008-04-15', '0912345678', 8.2, 'Nắm vững kiến thức giải tích và hàm số'],
+      ['HS1202', 'Ngô Bảo Ngọc', '12A4', 'Nữ', '2008-09-22', '0923456789', 9.0, 'Đội tuyển HSG Toán THPT Đan Phượng'],
+      ['HS1203', 'Hoàng Mai Anh', '12A12', 'Nữ', '2008-01-10', '0934567890', 7.5, 'Cần rèn thêm kỹ năng tính nhẩm tích phân'],
+      ['HS1204', 'Đặng Tuấn Kiệt', '12A13', 'Nam', '2008-11-05', '0945678901', 7.4, 'Tích cực xây dựng bài, chăm chỉ'],
+      ['HS1205', 'Bùi Phương Thảo', '12A14', 'Nữ', '2008-06-18', '0956789012', 7.8, 'Học lực Khá, tư duy hình học không gian tốt'],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 14 }, // Mã học sinh
+      { wch: 24 }, // Họ và tên
+      { wch: 10 }, // Lớp
+      { wch: 12 }, // Giới tính
+      { wch: 14 }, // Ngày sinh
+      { wch: 15 }, // SĐT
+      { wch: 10 }, // Điểm TB
+      { wch: 45 }, // Ghi chú
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DanhSachHocSinh');
+    XLSX.writeFile(wb, 'Mau_DanhSach_HocSinh_THPT_DanPhuong.xlsx');
+  };
+
   // Download Sample Template CSV
   const handleDownloadSampleTemplate = () => {
     const sampleHeaders = ['Mã HS', 'Họ và tên', 'Lớp', 'Giới tính', 'Số điện thoại', 'Điểm TB ban đầu', 'Ghi chú'];
     const sampleData = [
-      ['HS1021', 'Trần Bảo Anh', '10A1', 'Nữ', '0912345678', '7.5', 'Chăm chỉ, tích cực phát biểu'],
-      ['HS1022', 'Lê Tuấn Hưng', '10A1', 'Nam', '0923456789', '4.8', 'Cần phụ đạo thêm phần vectơ'],
-      ['HS1123', 'Đặng Thu Trang', '11A1', 'Nữ', '0934567890', '8.2', 'Nắm chắc kiến thức đạo hàm'],
+      ['HS1201', 'Vũ Đức Trí', '12A3', 'Nam', '0912345678', '8.2', 'Nắm chắc kiến thức giải tích'],
+      ['HS1202', 'Ngô Bảo Ngọc', '12A4', 'Nữ', '0923456789', '9.0', 'Đội tuyển HSG Toán'],
+      ['HS1203', 'Hoàng Mai Anh', '12A12', 'Nữ', '0934567890', '7.5', 'Chăm chỉ, tích cực'],
     ];
     const csvContent = '\uFEFF' + [sampleHeaders.join(','), ...sampleData.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -280,52 +328,346 @@ export const ClassStudentView: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Parse CSV on paste/input
-  const handleParseCsv = (rawText: string) => {
-    setImportCsvText(rawText);
-    const lines = rawText.split('\n').filter((l) => l.trim().length > 0);
-    if (lines.length <= 1) {
+  // Smart Row Processor for 2D Array from Excel or CSV
+  const processRowsToStudents = (rows: any[][], overrideClassId: string = targetImportClassId) => {
+    if (!rows || rows.length === 0) {
       setImportPreviewList([]);
-      setImportErrors(['Tệp hoặc dữ liệu chưa có đủ dòng dữ liệu.']);
+      setImportErrors(['Tệp Excel không chứa dữ liệu hàng nào.']);
+      setImportWarnings([]);
       return;
     }
 
-    const errors: string[] = [];
+    // 1. Locate Header Row (inspect first 15 rows for header keywords)
+    let headerRowIdx = -1;
+    const colMap: Record<string, number> = {};
+
+    for (let r = 0; r < Math.min(rows.length, 15); r++) {
+      const row = rows[r] || [];
+      const rowStr = row.map((cell) => String(cell || '').trim().toLowerCase());
+
+      const hasName = rowStr.some(
+        (c) =>
+          c.includes('họ và tên') ||
+          c.includes('họ tên') ||
+          c.includes('tên học sinh') ||
+          c === 'tên' ||
+          c.includes('full name')
+      );
+      const hasCode = rowStr.some(
+        (c) =>
+          c.includes('mã hs') ||
+          c.includes('mã học sinh') ||
+          c.includes('mã định danh') ||
+          c.includes('mã số') ||
+          c === 'sbd' ||
+          c.includes('stt')
+      );
+
+      if (hasName || (hasCode && rowStr.some((c) => c.includes('lớp') || c.includes('giới tính')))) {
+        headerRowIdx = r;
+        break;
+      }
+    }
+
+    if (headerRowIdx === -1) {
+      headerRowIdx = 0;
+    }
+
+    const headerRow = rows[headerRowIdx] || [];
+    headerRow.forEach((cell, idx) => {
+      const colTitle = String(cell || '').trim().toLowerCase();
+      if (!colTitle) return;
+
+      if (
+        (colTitle.includes('họ và tên') ||
+          colTitle.includes('họ tên') ||
+          colTitle.includes('tên học sinh') ||
+          colTitle === 'tên' ||
+          colTitle.includes('full name')) &&
+        colMap.name === undefined
+      ) {
+        colMap.name = idx;
+      }
+      if (
+        (colTitle.includes('họ và chữ đệm') || colTitle.includes('họ đệm') || colTitle === 'họ') &&
+        colMap.ho === undefined
+      ) {
+        colMap.ho = idx;
+      }
+      if ((colTitle === 'tên' || colTitle === 'tên riêng') && colMap.ten === undefined) {
+        colMap.ten = idx;
+      }
+      if (
+        (colTitle.includes('mã hs') ||
+          colTitle.includes('mã học sinh') ||
+          colTitle.includes('mã định danh') ||
+          colTitle.includes('mã số') ||
+          colTitle === 'sbd' ||
+          colTitle.includes('số báo danh') ||
+          colTitle === 'code') &&
+        colMap.code === undefined
+      ) {
+        colMap.code = idx;
+      }
+      if (
+        (colTitle.includes('lớp') ||
+          colTitle.includes('tên lớp') ||
+          colTitle.includes('khối lớp') ||
+          colTitle === 'class') &&
+        colMap.className === undefined
+      ) {
+        colMap.className = idx;
+      }
+      if (
+        (colTitle.includes('giới tính') ||
+          colTitle.includes('phái') ||
+          colTitle.includes('nam/nữ') ||
+          colTitle === 'gender') &&
+        colMap.gender === undefined
+      ) {
+        colMap.gender = idx;
+      }
+      if (
+        (colTitle.includes('ngày sinh') ||
+          colTitle.includes('năm sinh') ||
+          colTitle.includes('ngày tháng năm sinh') ||
+          colTitle === 'ns' ||
+          colTitle === 'dob') &&
+        colMap.birthDate === undefined
+      ) {
+        colMap.birthDate = idx;
+      }
+      if (
+        (colTitle.includes('điện thoại') ||
+          colTitle.includes('sđt') ||
+          colTitle.includes('số điện thoại') ||
+          colTitle.includes('sđt ph') ||
+          colTitle.includes('phone')) &&
+        colMap.phone === undefined
+      ) {
+        colMap.phone = idx;
+      }
+      if (
+        (colTitle.includes('điểm tb') ||
+          colTitle.includes('điểm trung bình') ||
+          colTitle.includes('điểm') ||
+          colTitle.includes('score')) &&
+        colMap.avgScore === undefined
+      ) {
+        colMap.avgScore = idx;
+      }
+      if (
+        (colTitle.includes('ghi chú') ||
+          colTitle.includes('nhận xét') ||
+          colTitle.includes('đặc điểm') ||
+          colTitle.includes('notes')) &&
+        colMap.notes === undefined
+      ) {
+        colMap.notes = idx;
+      }
+    });
+
     const parsed: Partial<Student>[] = [];
+    const errors: string[] = [];
+    const warnings: string[] = [];
     const seenCodes = new Set<string>();
 
-    lines.slice(1).forEach((line, index) => {
-      const parts = line.split(',').map((p) => p.trim().replace(/^["']|["']$/g, ''));
-      if (parts.length < 2) {
-        errors.push(`Dòng ${index + 2}: Thiếu cột thông tin họ tên.`);
-        return;
+    const targetClass = overrideClassId !== 'auto' ? classes.find((c) => c.id === overrideClassId) : null;
+
+    for (let r = headerRowIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row || row.length === 0) continue;
+
+      // Extract Name
+      let name = '';
+      if (colMap.name !== undefined && row[colMap.name] !== undefined) {
+        name = String(row[colMap.name]).trim();
+      } else if (colMap.ho !== undefined || colMap.ten !== undefined) {
+        const ho = colMap.ho !== undefined ? String(row[colMap.ho] || '').trim() : '';
+        const ten = colMap.ten !== undefined ? String(row[colMap.ten] || '').trim() : '';
+        name = `${ho} ${ten}`.trim();
       }
-      const code = parts[0] || `HS${1000 + Math.floor(Math.random() * 9000)}`;
-      const name = parts[1];
-      const className = parts[2] || '10A1';
-      const gender = parts[3] === 'Nữ' ? 'Nữ' : 'Nam';
-      const phone = parts[4] || '';
-      const avgScore = parseFloat(parts[5]) || 0;
-      const notes = parts[6] || '';
+
+      // Skip non-student or title/summary rows
+      if (
+        !name ||
+        name.toLowerCase().includes('tổng số') ||
+        name.toLowerCase().includes('giáo viên') ||
+        name.toLowerCase().includes('ghi chú') ||
+        name.toLowerCase().startsWith('thpt')
+      ) {
+        continue;
+      }
+
+      // Extract Code
+      let code = '';
+      if (colMap.code !== undefined && row[colMap.code] !== undefined) {
+        code = String(row[colMap.code]).trim();
+      }
+      if (!code) {
+        code = `HS${Math.floor(1000 + Math.random() * 9000)}`;
+      }
 
       if (seenCodes.has(code)) {
-        errors.push(`Dòng ${index + 2}: Trùng lặp mã học sinh "${code}".`);
+        warnings.push(`Dòng ${r + 1}: Trùng lặp mã "${code}". Đã tự động tạo mã bổ sung cho học sinh "${name}".`);
+        code = `${code}_${Math.floor(Math.random() * 90 + 10)}`;
       }
       seenCodes.add(code);
+
+      // Determine Class
+      let className = targetClass ? targetClass.name : '';
+      let classId = targetClass ? targetClass.id : '';
+
+      if (!targetClass) {
+        if (colMap.className !== undefined && row[colMap.className] !== undefined) {
+          className = String(row[colMap.className]).trim();
+        }
+        if (!className) {
+          className = selectedClassFilter !== 'all' ? (classes.find((c) => c.id === selectedClassFilter)?.name || '12A3') : '12A3';
+        }
+        const matched = classes.find((c) => c.name.toLowerCase() === className.toLowerCase());
+        if (matched) {
+          classId = matched.id;
+          className = matched.name;
+        } else {
+          classId = classes[0]?.id || 'c12a3';
+        }
+      }
+
+      // Determine Gender
+      let gender: 'Nam' | 'Nữ' = 'Nam';
+      if (colMap.gender !== undefined && row[colMap.gender] !== undefined) {
+        const gRaw = String(row[colMap.gender]).trim().toLowerCase();
+        if (gRaw === 'nữ' || gRaw === 'nu' || gRaw === 'female' || gRaw === 'f' || gRaw === 'gái') {
+          gender = 'Nữ';
+        }
+      }
+
+      // Determine Birthdate
+      let birthDate = '2008-01-01';
+      if (colMap.birthDate !== undefined && row[colMap.birthDate] !== undefined) {
+        const bRaw = row[colMap.birthDate];
+        if (typeof bRaw === 'number' && bRaw > 20000) {
+          try {
+            const dateObj = XLSX.SSF.parse_date_code(bRaw);
+            const m = String(dateObj.m).padStart(2, '0');
+            const d = String(dateObj.d).padStart(2, '0');
+            birthDate = `${dateObj.y}-${m}-${d}`;
+          } catch {
+            birthDate = String(bRaw);
+          }
+        } else {
+          birthDate = String(bRaw).trim();
+        }
+      }
+
+      // Determine Phone
+      let phone = '';
+      if (colMap.phone !== undefined && row[colMap.phone] !== undefined) {
+        phone = String(row[colMap.phone]).trim();
+      }
+
+      // Determine Avg Score
+      let avgScore = 0;
+      if (colMap.avgScore !== undefined && row[colMap.avgScore] !== undefined) {
+        const sVal = parseFloat(String(row[colMap.avgScore]).replace(',', '.'));
+        if (!isNaN(sVal) && sVal >= 0 && sVal <= 10) {
+          avgScore = Math.round(sVal * 10) / 10;
+        }
+      }
+
+      // Determine Notes
+      let notes = 'Nhập từ file Excel';
+      if (colMap.notes !== undefined && row[colMap.notes] !== undefined) {
+        notes = String(row[colMap.notes]).trim() || 'Nhập từ file Excel';
+      }
 
       parsed.push({
         code,
         name,
+        classId,
         className,
         gender,
+        birthDate,
         phone,
         avgScore,
         notes,
       });
-    });
+    }
+
+    if (parsed.length === 0) {
+      errors.push('Không tìm thấy bản ghi học sinh hợp lệ nào từ tệp. Vui lòng kiểm tra lại tiêu đề cột.');
+    }
 
     setImportErrors(errors);
+    setImportWarnings(warnings);
     setImportPreviewList(parsed);
+  };
+
+  // Handle uploaded file (Excel .xlsx, .xls, .csv)
+  const handleFileUpload = (file: File) => {
+    if (!file) return;
+    setUploadedFileName(file.name);
+    setUploadedFileSize(`${(file.size / 1024).toFixed(1)} KB`);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        setRawWorkbook(workbook);
+        setSheetNames(workbook.SheetNames);
+        const firstSheet = workbook.SheetNames[0];
+        setSelectedSheet(firstSheet);
+
+        const worksheet = workbook.Sheets[firstSheet];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+        processRowsToStudents(rows);
+      } catch (err: any) {
+        setImportErrors([`Lỗi khi đọc file Excel: ${err.message || 'Định dạng file không được hỗ trợ.'}`]);
+        setImportPreviewList([]);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Handle sheet change in multi-sheet Excel
+  const handleSheetChange = (sheetName: string) => {
+    setSelectedSheet(sheetName);
+    if (!rawWorkbook) return;
+    const worksheet = rawWorkbook.Sheets[sheetName];
+    if (!worksheet) return;
+    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+    processRowsToStudents(rows);
+  };
+
+  // Handle target class selection change
+  const handleTargetClassChange = (clsId: string) => {
+    setTargetImportClassId(clsId);
+    if (rawWorkbook && selectedSheet) {
+      const worksheet = rawWorkbook.Sheets[selectedSheet];
+      if (worksheet) {
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+        processRowsToStudents(rows, clsId);
+      }
+    } else if (importCsvText.trim()) {
+      handleParseCsv(importCsvText, clsId);
+    }
+  };
+
+  // Parse CSV on paste/input
+  const handleParseCsv = (rawText: string, overrideClassId: string = targetImportClassId) => {
+    setImportCsvText(rawText);
+    const lines = rawText.split('\n').filter((l) => l.trim().length > 0);
+    if (lines.length <= 1) {
+      setImportPreviewList([]);
+      setImportErrors(['Dữ liệu dán chưa có đủ dòng tiêu đề và dữ liệu học sinh.']);
+      setImportWarnings([]);
+      return;
+    }
+
+    const rows = lines.map((l) => l.split(',').map((p) => p.trim().replace(/^["']|["']$/g, '')));
+    processRowsToStudents(rows, overrideClassId);
   };
 
   // Submit Add Class
@@ -460,11 +802,15 @@ export const ClassStudentView: React.FC = () => {
               )}
 
               <button
-                onClick={() => setIsImportStudentsOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                onClick={() => {
+                  setImportTab('excel');
+                  setIsImportStudentsOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer"
+                title="Tải lên tệp Excel (.xlsx, .xls) hoặc CSV để nạp danh sách học sinh"
               >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Nhập Excel / CSV</span>
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Nhập từ file Excel</span>
               </button>
 
               <button
@@ -1435,115 +1781,325 @@ export const ClassStudentView: React.FC = () => {
         </div>
       )}
 
-      {/* IMPORT STUDENTS CSV MODAL */}
+      {/* IMPORT STUDENTS EXCEL & CSV MODAL */}
       {isImportStudentsOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-blue-100 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-base font-bold text-[#064A87]">
-                  Nhập danh sách học sinh từ tệp CSV / Excel
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsImportStudentsOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4 text-xs">
-              <div className="flex items-center justify-between bg-blue-50/70 p-3 rounded-xl border border-blue-200">
-                <div>
-                  <p className="font-bold text-[#064A87]">Tải tệp mẫu chuẩn</p>
-                  <p className="text-gray-500">Mẫu định dạng chuẩn gồm các cột: Mã HS, Họ tên, Lớp, Giới tính...</p>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl border border-blue-100 max-h-[92vh] overflow-y-auto flex flex-col justify-between">
+            {/* Modal Header */}
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-200">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-[#064A87]">
+                      Nhập học sinh từ file Excel tải lên
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Hỗ trợ tệp bảng tính Excel (.xlsx, .xls) và .CSV xuất từ SMAS, VnEdu, eNetViet của THPT Đan Phượng
+                    </p>
+                  </div>
                 </div>
                 <button
-                  type="button"
-                  onClick={handleDownloadSampleTemplate}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-[#0878D1] border border-blue-300 rounded-lg font-semibold hover:bg-blue-50 shadow-xs cursor-pointer"
+                  onClick={() => {
+                    setIsImportStudentsOpen(false);
+                    setUploadedFileName('');
+                    setUploadedFileSize('');
+                    setRawWorkbook(null);
+                    setSheetNames([]);
+                    setImportPreviewList([]);
+                    setImportErrors([]);
+                    setImportWarnings([]);
+                    setImportCsvText('');
+                  }}
+                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg cursor-pointer"
+                  title="Đóng cửa sổ"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Tải tệp mẫu</span>
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-semibold text-gray-700">
-                    Nội dung danh sách học sinh (CSV)
-                  </label>
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Chọn tệp .CSV từ máy tính</span>
+              {/* Sample Templates & Guidelines Bar */}
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-gradient-to-r from-emerald-50/70 to-blue-50/60 p-3 rounded-xl border border-emerald-200 text-xs">
+                <div>
+                  <p className="font-bold text-[#064A87] flex items-center gap-1.5">
+                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Tải tệp mẫu chuẩn của trường:</span>
+                  </p>
+                  <p className="text-[11px] text-gray-600 mt-0.5">
+                    Bao gồm các cột: <strong>Mã HS, Họ và tên, Lớp, Giới tính, Ngày sinh, Số điện thoại, Điểm TB, Ghi chú</strong>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDownloadSampleExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 shadow-xs transition-colors cursor-pointer text-xs"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Tải mẫu Excel (.xlsx)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadSampleTemplate}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 shadow-xs transition-colors cursor-pointer text-xs"
+                  >
+                    <Download className="w-3 h-3 text-gray-500" />
+                    <span>Mẫu CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Import Method Tabs */}
+              <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setImportTab('excel')}
+                  className={`py-2 px-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    importTab === 'excel'
+                      ? 'bg-[#0878D1] text-white shadow-xs'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>1. Tải lên tệp Excel / CSV (Khuyên dùng)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportTab('paste')}
+                  className={`py-2 px-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    importTab === 'paste'
+                      ? 'bg-[#0878D1] text-white shadow-xs'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>2. Dán dữ liệu trực tiếp (Copy-Paste)</span>
+                </button>
+              </div>
+
+              {/* Destination Class Selection Option */}
+              <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#0878D1]" />
+                  <span className="font-semibold text-gray-700">Lớp học nhận dữ liệu:</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={targetImportClassId}
+                    onChange={(e) => handleTargetClassChange(e.target.value)}
+                    className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#0878D1]"
+                  >
+                    <option value="auto">⚡ Tự động nhận diện theo cột "Lớp" trong file</option>
+                    <optgroup label="Hoặc gán toàn bộ học sinh vào lớp cụ thể:">
+                      {classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          Lớp {cls.name} (Khối {cls.grade} - Sĩ số: {cls.totalStudents} HS)
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+
+              {/* Tab 1: File Upload */}
+              {importTab === 'excel' && (
+                <div className="mt-3 space-y-3">
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(true);
+                    }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleFileUpload(file);
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+                      isDragOver
+                        ? 'border-emerald-500 bg-emerald-50/70 scale-[0.99]'
+                        : 'border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 bg-gray-50/50'
+                    }`}
+                  >
                     <input
+                      ref={fileInputRef}
                       type="file"
-                      accept=".csv,.txt"
+                      accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          const content = (event.target?.result as string) || '';
-                          handleParseCsv(content);
-                        };
-                        reader.readAsText(file);
+                        if (file) handleFileUpload(file);
                       }}
                     />
-                  </label>
-                </div>
-                <textarea
-                  rows={6}
-                  value={importCsvText}
-                  onChange={(e) => handleParseCsv(e.target.value)}
-                  placeholder="Dán các dòng CSV tại đây hoặc bấm 'Chọn tệp .CSV từ máy tính'... Ví dụ:&#10;Mã HS,Họ và tên,Lớp,Giới tính,SĐT,Điểm TB,Ghi chú&#10;HS1021,Trần Bảo Anh,10A1,Nữ,0912345678,7.5,Chăm chỉ"
-                  className="w-full p-2.5 font-mono text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0878D1]"
-                />
-              </div>
-
-              {/* Error messages if any */}
-              {importErrors.length > 0 && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>Phát hiện cảnh báo dữ liệu:</span>
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-inner">
+                        <FileSpreadsheet className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">
+                          Kéo và thả tệp Excel vào đây, hoặc <span className="text-[#0878D1] underline">Bấm để chọn tệp</span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Hỗ trợ định dạng: <strong>.xlsx, .xls, .csv</strong> (từ SMAS, VnEdu hoặc Excel cá nhân)
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  {importErrors.map((err, i) => (
-                    <p key={i} className="text-[11px] pl-5">• {err}</p>
-                  ))}
+
+                  {/* Uploaded File Details Card */}
+                  {uploadedFileName && (
+                    <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <FileCheck2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                        <div>
+                          <p className="font-bold text-emerald-900 truncate max-w-xs sm:max-w-md">
+                            {uploadedFileName}
+                          </p>
+                          <p className="text-[11px] text-emerald-700">
+                            Dung lượng: {uploadedFileSize} • Đã phân tích thành công
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {sheetNames.length > 1 && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-emerald-800 font-semibold text-[11px]">Chọn Sheet:</span>
+                            <select
+                              value={selectedSheet}
+                              onChange={(e) => handleSheetChange(e.target.value)}
+                              className="px-2 py-1 bg-white border border-emerald-300 rounded text-xs font-semibold text-emerald-900 focus:outline-none"
+                            >
+                              {sheetNames.map((sheet) => (
+                                <option key={sheet} value={sheet}>
+                                  {sheet}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-white hover:bg-emerald-100 border border-emerald-300 rounded-lg shadow-2xs cursor-pointer"
+                        >
+                          Đổi tệp khác
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Preview table */}
+              {/* Tab 2: Paste Raw Data */}
+              {importTab === 'paste' && (
+                <div className="mt-3 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-gray-700">
+                      Dán nội dung bảng tính / CSV tại đây:
+                    </label>
+                    <span className="text-gray-400 text-[11px]">Cách nhau bằng dấu phẩy hoặc tab</span>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={importCsvText}
+                    onChange={(e) => handleParseCsv(e.target.value)}
+                    placeholder="Mã HS, Họ và tên, Lớp, Giới tính, Số điện thoại, Điểm TB, Ghi chú&#10;HS1201, Vũ Đức Trí, 12A3, Nam, 0912345678, 8.2, Nắm chắc giải tích&#10;HS1202, Ngô Bảo Ngọc, 12A4, Nữ, 0923456789, 9.0, Đội tuyển HSG Toán&#10;HS1203, Hoàng Mai Anh, 12A12, Nữ, 0934567890, 7.5, Chăm chỉ"
+                    className="w-full p-2.5 font-mono text-xs border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0878D1]"
+                  />
+                </div>
+              )}
+
+              {/* Warnings & Notices */}
+              {importWarnings.length > 0 && (
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 space-y-1 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <span>Lưu ý tự động xử lý ({importWarnings.length}):</span>
+                  </div>
+                  <div className="max-h-24 overflow-y-auto space-y-0.5 pl-5 text-[11px]">
+                    {importWarnings.map((warn, i) => (
+                      <p key={i}>• {warn}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Errors List */}
+              {importErrors.length > 0 && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 space-y-1 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Lỗi cần kiểm tra:</span>
+                  </div>
+                  <div className="space-y-0.5 pl-5 text-[11px]">
+                    {importErrors.map((err, i) => (
+                      <p key={i}>• {err}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Table */}
               {importPreviewList.length > 0 && (
-                <div>
-                  <p className="font-bold text-gray-700 mb-1.5">
-                    Xem trước ({importPreviewList.length} dòng hợp lệ):
-                  </p>
-                  <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-800">
+                        Xem trước dữ liệu học sinh hợp lệ:
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-200">
+                        {importPreviewList.length} học sinh
+                      </span>
+                    </div>
+                    <span className="text-gray-500 text-[11px]">
+                      Kiểm tra danh sách trước khi nhấn lưu
+                    </span>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl shadow-inner">
                     <table className="w-full text-[11px] text-left">
-                      <thead className="bg-gray-100 text-gray-700 font-bold">
+                      <thead className="bg-gray-100 text-gray-700 font-bold sticky top-0 z-10">
                         <tr>
-                          <th className="p-1.5">Mã</th>
-                          <th className="p-1.5">Họ tên</th>
-                          <th className="p-1.5">Lớp</th>
-                          <th className="p-1.5">Giới tính</th>
-                          <th className="p-1.5">Điểm TB</th>
-                          <th className="p-1.5">Ghi chú</th>
+                          <th className="p-2 w-10 text-center">STT</th>
+                          <th className="p-2">Mã HS</th>
+                          <th className="p-2">Họ và tên</th>
+                          <th className="p-2">Lớp</th>
+                          <th className="p-2">Giới tính</th>
+                          <th className="p-2">Ngày sinh</th>
+                          <th className="p-2">Số điện thoại</th>
+                          <th className="p-2 text-center">Điểm TB</th>
+                          <th className="p-2">Ghi chú</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-gray-100 bg-white">
                         {importPreviewList.map((st, i) => (
-                          <tr key={i}>
-                            <td className="p-1.5 font-semibold text-[#0878D1]">{st.code}</td>
-                            <td className="p-1.5 font-bold text-gray-800">{st.name}</td>
-                            <td className="p-1.5">{st.className}</td>
-                            <td className="p-1.5">{st.gender}</td>
-                            <td className="p-1.5 font-bold">{st.avgScore}</td>
-                            <td className="p-1.5 text-gray-500 truncate max-w-[150px]">{st.notes}</td>
+                          <tr key={i} className="hover:bg-blue-50/50 transition-colors">
+                            <td className="p-2 text-center text-gray-400 font-medium">{i + 1}</td>
+                            <td className="p-2 font-semibold text-[#0878D1]">{st.code}</td>
+                            <td className="p-2 font-bold text-gray-800">{st.name}</td>
+                            <td className="p-2">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#0878D1]">
+                                {st.className}
+                              </span>
+                            </td>
+                            <td className="p-2">
+                              <span
+                                className={`px-1.5 py-0.2 rounded text-[10px] font-medium ${
+                                  st.gender === 'Nữ' ? 'bg-pink-100 text-pink-700' : 'bg-blue-50 text-blue-700'
+                                }`}
+                              >
+                                {st.gender}
+                              </span>
+                            </td>
+                            <td className="p-2 text-gray-600">{st.birthDate || '2008-01-01'}</td>
+                            <td className="p-2 text-gray-600 font-mono text-[10px]">{st.phone || '—'}</td>
+                            <td className="p-2 text-center font-bold text-emerald-700">{st.avgScore || 0}</td>
+                            <td className="p-2 text-gray-500 truncate max-w-[140px]">{st.notes}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1551,12 +2107,35 @@ export const ClassStudentView: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
 
-              <div className="pt-2 flex justify-end gap-2">
+            {/* Modal Actions Footer */}
+            <div className="pt-4 mt-4 border-t border-gray-100 flex items-center justify-between gap-2">
+              <div className="text-xs text-gray-500 hidden sm:block">
+                {importPreviewList.length > 0 ? (
+                  <span className="text-emerald-700 font-medium">
+                    ✓ Đã sẵn sàng nạp <strong>{importPreviewList.length}</strong> học sinh vào cơ sở dữ liệu
+                  </span>
+                ) : (
+                  <span>Hãy chọn file Excel hoặc dán dữ liệu để xem trước</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto">
                 <button
                   type="button"
-                  onClick={() => setIsImportStudentsOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
+                  onClick={() => {
+                    setIsImportStudentsOpen(false);
+                    setUploadedFileName('');
+                    setUploadedFileSize('');
+                    setRawWorkbook(null);
+                    setSheetNames([]);
+                    setImportPreviewList([]);
+                    setImportErrors([]);
+                    setImportWarnings([]);
+                    setImportCsvText('');
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   Hủy
                 </button>
@@ -1565,14 +2144,23 @@ export const ClassStudentView: React.FC = () => {
                   disabled={importPreviewList.length === 0}
                   onClick={() => {
                     importStudentsList(importPreviewList);
-                    showFeedback(`Đã nhập thành công ${importPreviewList.length} học sinh vào hệ thống!`);
+                    showFeedback(
+                      `Đã nhập thành công ${importPreviewList.length} học sinh từ file Excel vào hệ thống!`
+                    );
                     setIsImportStudentsOpen(false);
-                    setImportCsvText('');
+                    setUploadedFileName('');
+                    setUploadedFileSize('');
+                    setRawWorkbook(null);
+                    setSheetNames([]);
                     setImportPreviewList([]);
+                    setImportErrors([]);
+                    setImportWarnings([]);
+                    setImportCsvText('');
                   }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-semibold rounded-lg shadow-sm cursor-pointer"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-semibold rounded-lg shadow-sm cursor-pointer flex items-center gap-1.5 text-xs transition-colors"
                 >
-                  Xác nhận nhập {importPreviewList.length} học sinh
+                  <Check className="w-4 h-4" />
+                  <span>Xác nhận nhập {importPreviewList.length} học sinh</span>
                 </button>
               </div>
             </div>

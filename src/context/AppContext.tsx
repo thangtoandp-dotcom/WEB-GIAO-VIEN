@@ -937,21 +937,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     newStudentsData.forEach((st, idx) => {
       if (!st.name) return;
       const id = `s_imp_${Date.now()}_${idx}`;
-      const matchingClass = classes.find((c) => c.name === st.className);
+      const targetClassName = (st.className || '').trim();
+      const matchingClass = classes.find(
+        (c) => c.name.toLowerCase() === targetClassName.toLowerCase() || c.id === st.classId
+      ) || classes[0];
+
       const studentObj: Student = {
         id,
-        code: st.code || `HS${Math.floor(1000 + Math.random() * 9000)}`,
-        name: st.name,
-        classId: matchingClass ? matchingClass.id : 'c10a1',
-        className: st.className || '10A1',
-        gender: (st.gender as 'Nam' | 'Nữ') || 'Nam',
+        code: st.code?.trim() || `HS${Math.floor(1000 + Math.random() * 9000)}`,
+        name: st.name.trim(),
+        classId: matchingClass ? matchingClass.id : (st.classId || 'c10a1'),
+        className: matchingClass ? matchingClass.name : (st.className || '10A1'),
+        gender: ((st.gender as string) === 'Nữ' || (st.gender as string) === 'Female' ? 'Nữ' : 'Nam'),
         birthDate: st.birthDate || '2009-01-01',
         email: st.email || '',
         phone: st.phone || '',
         status: (st.status as any) || 'good',
-        avgScore: st.avgScore || 0,
+        avgScore: typeof st.avgScore === 'number' ? st.avgScore : 0,
         totalTests: 0,
-        notes: st.notes || 'Nhập từ tệp',
+        notes: st.notes || 'Nhập từ file Excel',
         recentScores: [],
       };
       newStList.push(studentObj);
@@ -966,14 +970,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
-    setStudents((prev) => [...prev, ...newStList]);
-    setGradeRecords((prev) => [...prev, ...newGradeList]);
+    if (newStList.length === 0) return;
+
+    setStudents((prev) => {
+      const next = [...prev, ...newStList];
+      safeSetStorage(`${STORAGE_KEY}_students`, next);
+      safeSetStorage(CUSTOMIZED_KEY, 'true');
+      return next;
+    });
+
+    setGradeRecords((prev) => {
+      const next = [...prev, ...newGradeList];
+      safeSetStorage(`${STORAGE_KEY}_grades`, next);
+      return next;
+    });
+
+    // Update classes student counts
+    setClasses((prev) => {
+      const allStudents = [...students, ...newStList];
+      const next = prev.map((c) => {
+        const count = allStudents.filter(
+          (s) => s.classId === c.id || s.className.toLowerCase() === c.name.toLowerCase()
+        ).length;
+        return { ...c, totalStudents: count };
+      });
+      safeSetStorage(`${STORAGE_KEY}_classes`, next);
+      next.forEach((cls) => {
+        silentBgSync(supabase.from('classes').update({ total_students: cls.totalStudents }).eq('id', cls.id));
+      });
+      return next;
+    });
 
     // Push imported students to Supabase
-    if (newStList.length > 0) {
-      silentBgSync(supabase.from('students').insert(newStList.map(mapStudentToDB)));
-      silentBgSync(supabase.from('grade_records').insert(newGradeList.map(mapGradeRecordToDB)));
-    }
+    silentBgSync(supabase.from('students').insert(newStList.map(mapStudentToDB)));
+    silentBgSync(supabase.from('grade_records').insert(newGradeList.map(mapGradeRecordToDB)));
   };
 
   const addQuestion = (q: Omit<Question, 'id' | 'createdDate'>) => {
