@@ -28,6 +28,21 @@ import {
   INITIAL_GAMES,
   INITIAL_ACTIVITIES,
 } from '../data/mockData';
+import { supabase, checkSupabaseConnection } from '../lib/supabase';
+import {
+  pushAllDataToSupabase,
+  pullAllDataFromSupabase,
+  mapClassToDB,
+  mapStudentToDB,
+  mapQuestionToDB,
+  mapExamToDB,
+  mapGradeRecordToDB,
+  mapAttendanceToDB,
+  mapDocumentToDB,
+  mapGameToDB,
+  mapActivityToDB,
+  mapTeacherProfileToDB,
+} from '../lib/supabaseService';
 
 
 export type NavTab =
@@ -152,6 +167,14 @@ interface AppContextType {
   clearAllData: () => void;
   exportDatabaseJSON: () => void;
   importDatabaseJSON: (jsonStr: string) => boolean;
+
+  // Supabase Cloud Data sync
+  supabaseStatus: 'checking' | 'connected' | 'not_configured' | 'tables_missing' | 'error';
+  supabaseMessage: string;
+  isSyncingWithSupabase: boolean;
+  checkSupabaseHealth: () => Promise<void>;
+  syncAllToSupabase: () => Promise<{ success: boolean; message: string; counts?: Record<string, number> }>;
+  loadAllFromSupabase: () => Promise<{ success: boolean; message: string }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -316,6 +339,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_documents`, JSON.stringify(documents));
   }, [documents]);
 
+  // Supabase cloud synchronization state
+  const [supabaseStatus, setSupabaseStatus] = useState<
+    'checking' | 'connected' | 'not_configured' | 'tables_missing' | 'error'
+  >('checking');
+  const [supabaseMessage, setSupabaseMessage] = useState('Đang kết nối Supabase Cloud...');
+  const [isSyncingWithSupabase, setIsSyncingWithSupabase] = useState(false);
+
+  const checkSupabaseHealth = async () => {
+    setSupabaseStatus('checking');
+    setSupabaseMessage('Đang kiểm tra kết nối Supabase Cloud...');
+    try {
+      const res = await checkSupabaseConnection();
+      if (!res.connected) {
+        setSupabaseStatus('error');
+        setSupabaseMessage(res.message);
+      } else if (res.tablesFound && res.tablesFound.length > 0) {
+        setSupabaseStatus('connected');
+        setSupabaseMessage(res.message);
+      } else {
+        setSupabaseStatus('tables_missing');
+        setSupabaseMessage(res.message);
+      }
+    } catch (e: any) {
+      setSupabaseStatus('error');
+      setSupabaseMessage(`Lỗi kiểm tra kết nối: ${e.message}`);
+    }
+  };
+
+  useEffect(() => {
+    checkSupabaseHealth();
+  }, []);
+
+  const syncAllToSupabase = async () => {
+    setIsSyncingWithSupabase(true);
+    try {
+      const res = await pushAllDataToSupabase({
+        classes,
+        students,
+        questions,
+        exams,
+        gradeRecords,
+        attendanceSessions,
+        documents,
+        games,
+        activities,
+        teacherProfile,
+      });
+      if (res.success) {
+        setSupabaseStatus('connected');
+        setSupabaseMessage(res.message);
+      }
+      return res;
+    } finally {
+      setIsSyncingWithSupabase(false);
+    }
+  };
+
+  const loadAllFromSupabase = async () => {
+    setIsSyncingWithSupabase(true);
+    try {
+      const res = await pullAllDataFromSupabase();
+      if (res.success && res.data) {
+        if (res.data.classes) setClasses(res.data.classes);
+        if (res.data.students) setStudents(res.data.students);
+        if (res.data.questions) setQuestions(res.data.questions);
+        if (res.data.exams) setExams(res.data.exams);
+        if (res.data.gradeRecords) setGradeRecords(res.data.gradeRecords);
+        if (res.data.attendanceSessions) setAttendanceSessions(res.data.attendanceSessions);
+        if (res.data.documents) setDocuments(res.data.documents);
+        if (res.data.games) setGames(res.data.games);
+        if (res.data.activities) setActivities(res.data.activities);
+        if (res.data.teacherProfile) setTeacherProfile(res.data.teacherProfile);
+        setSupabaseStatus('connected');
+      }
+      return { success: res.success, message: res.message };
+    } finally {
+      setIsSyncingWithSupabase(false);
+    }
+  };
+
+  // Helper for background Supabase persistence without throwing
+  const silentBgSync = (promise: PromiseLike<any>) => {
+    promise.then(
+      () => {},
+      (err) => {
+        console.warn('Supabase sync note:', err);
+      }
+    );
+  };
 
   // Recalculate student counts and class stats
   const addClass = (cls: Omit<ClassRoom, 'id' | 'avgScore' | 'totalStudents'>) => {
@@ -326,16 +438,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       avgScore: 0,
     };
     setClasses((prev) => [newClass, ...prev]);
+    silentBgSync(supabase.from('classes').insert([mapClassToDB(newClass)]));
   };
 
   const updateClass = (id: string, updates: Partial<ClassRoom>) => {
     setClasses((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+      prev.map((c) => {
+        if (c.id === id) {
+          const updated = { ...c, ...updates };
+          silentBgSync(supabase.from('classes').update(mapClassToDB(updated)).eq('id', id));
+          return updated;
+        }
+        return c;
+      })
     );
   };
 
   const deleteClass = (id: string) => {
     setClasses((prev) => prev.filter((c) => c.id !== id));
+    silentBgSync(supabase.from('classes').delete().eq('id', id));
   };
 
   const addStudent = (st: Omit<Student, 'id' | 'avgScore' | 'totalTests' | 'recentScores'>) => {
@@ -365,11 +486,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         c.id === st.classId ? { ...c, totalStudents: c.totalStudents + 1 } : c
       )
     );
+
+    // Background sync to Supabase
+    silentBgSync(supabase.from('students').insert([mapStudentToDB(newStudent)]));
+    silentBgSync(supabase.from('grade_records').insert([mapGradeRecordToDB(newGrade)]));
   };
 
   const updateStudent = (id: string, updates: Partial<Student>) => {
     setStudents((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
+      prev.map((s) => {
+        if (s.id === id) {
+          const updated = { ...s, ...updates };
+          silentBgSync(supabase.from('students').update(mapStudentToDB(updated)).eq('id', id));
+          return updated;
+        }
+        return s;
+      })
     );
     if (selectedStudent && selectedStudent.id === id) {
       setSelectedStudent((prev) => (prev ? { ...prev, ...updates } : null));
@@ -380,6 +512,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const st = students.find((s) => s.id === id);
     setStudents((prev) => prev.filter((s) => s.id !== id));
     setGradeRecords((prev) => prev.filter((g) => g.studentId !== id));
+    silentBgSync(supabase.from('students').delete().eq('id', id));
+    silentBgSync(supabase.from('grade_records').delete().eq('student_id', id));
     if (st) {
       setClasses((prev) =>
         prev.map((c) =>
@@ -430,6 +564,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setStudents((prev) => [...prev, ...newStList]);
     setGradeRecords((prev) => [...prev, ...newGradeList]);
+
+    // Push imported students to Supabase
+    if (newStList.length > 0) {
+      silentBgSync(supabase.from('students').insert(newStList.map(mapStudentToDB)));
+      silentBgSync(supabase.from('grade_records').insert(newGradeList.map(mapGradeRecordToDB)));
+    }
   };
 
   const addQuestion = (q: Omit<Question, 'id' | 'createdDate'>) => {
@@ -439,6 +579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdDate: new Date().toLocaleDateString('vi-VN'),
     };
     setQuestions((prev) => [newQ, ...prev]);
+    silentBgSync(supabase.from('questions').insert([mapQuestionToDB(newQ)]));
   };
 
   const addQuestionsBatch = (newQs: Omit<Question, 'id' | 'createdDate'>[]) => {
@@ -450,17 +591,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdDate,
     }));
     setQuestions((prev) => [...createdList, ...prev]);
+    silentBgSync(supabase.from('questions').insert(createdList.map(mapQuestionToDB)));
     return createdList;
   };
 
   const updateQuestion = (id: string, updates: Partial<Question>) => {
     setQuestions((prev) =>
-      prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
+      prev.map((q) => {
+        if (q.id === id) {
+          const updated = { ...q, ...updates };
+          silentBgSync(supabase.from('questions').update(mapQuestionToDB(updated)).eq('id', id));
+          return updated;
+        }
+        return q;
+      })
     );
   };
 
   const deleteQuestion = (id: string) => {
     setQuestions((prev) => prev.filter((q) => q.id !== id));
+    silentBgSync(supabase.from('questions').delete().eq('id', id));
   };
 
   const addExam = (e: Omit<Exam, 'id' | 'createdDate' | 'status'>) => {
@@ -472,11 +622,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       avgScore: 0,
     };
     setExams((prev) => [newExam, ...prev]);
+    silentBgSync(supabase.from('exams').insert([mapExamToDB(newExam)]));
   };
 
   const updateExam = (id: string, updates: Partial<Exam>) => {
     setExams((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
+      prev.map((e) => {
+        if (e.id === id) {
+          const updated = { ...e, ...updates };
+          silentBgSync(supabase.from('exams').update(mapExamToDB(updated)).eq('id', id));
+          return updated;
+        }
+        return e;
+      })
     );
   };
 
@@ -487,10 +645,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedDate: new Date().toLocaleDateString('vi-VN'),
     };
     setDocuments((prev) => [newDoc, ...prev]);
+    silentBgSync(supabase.from('documents').insert([mapDocumentToDB(newDoc)]));
   };
 
   const deleteDocument = (id: string) => {
     setDocuments((prev) => prev.filter((d) => d.id !== id));
+    silentBgSync(supabase.from('documents').delete().eq('id', id));
   };
 
   const addGame = (game: Omit<GameItem, 'id' | 'playsCount' | 'rating'>) => {
@@ -504,14 +664,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       author: game.author || 'Thầy Bùi Ngọc Thắng',
     };
     setGames((prev) => [newGame, ...prev]);
+    silentBgSync(supabase.from('games').insert([mapGameToDB(newGame)]));
   };
 
   const deleteGame = (gameId: string) => {
     setGames((prev) => prev.filter((g) => g.id !== gameId));
+    silentBgSync(supabase.from('games').delete().eq('id', gameId));
   };
 
   const updateGame = (gameId: string, updates: Partial<GameItem>) => {
-    setGames((prev) => prev.map((g) => (g.id === gameId ? { ...g, ...updates } : g)));
+    setGames((prev) =>
+      prev.map((g) => {
+        if (g.id === gameId) {
+          const updated = { ...g, ...updates };
+          silentBgSync(supabase.from('games').update(mapGameToDB(updated)).eq('id', gameId));
+          return updated;
+        }
+        return g;
+      })
+    );
   };
 
   const addActivity = (act: Omit<ClassActivity, 'id' | 'likesCount' | 'createdDate'>) => {
@@ -522,30 +693,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdDate: new Date().toLocaleDateString('vi-VN'),
     };
     setActivities((prev) => [newAct, ...prev]);
+    silentBgSync(supabase.from('class_activities').insert([mapActivityToDB(newAct)]));
   };
 
   const updateActivity = (id: string, updates: Partial<ClassActivity>) => {
-    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)));
+    setActivities((prev) =>
+      prev.map((a) => {
+        if (a.id === id) {
+          const updated = { ...a, ...updates };
+          silentBgSync(supabase.from('class_activities').update(mapActivityToDB(updated)).eq('id', id));
+          return updated;
+        }
+        return a;
+      })
+    );
   };
 
   const deleteActivity = (id: string) => {
     setActivities((prev) => prev.filter((a) => a.id !== id));
+    silentBgSync(supabase.from('class_activities').delete().eq('id', id));
   };
 
   const toggleLikeActivity = (id: string) => {
     setActivities((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, likesCount: a.likesCount + 1 } : a))
+      prev.map((a) => {
+        if (a.id === id) {
+          const updated = { ...a, likesCount: a.likesCount + 1 };
+          silentBgSync(supabase.from('class_activities').update({ likes_count: updated.likesCount }).eq('id', id));
+          return updated;
+        }
+        return a;
+      })
     );
   };
 
   const togglePinActivity = (id: string) => {
     setActivities((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, isPinned: !a.isPinned } : a))
+      prev.map((a) => {
+        if (a.id === id) {
+          const updated = { ...a, isPinned: !a.isPinned };
+          silentBgSync(supabase.from('class_activities').update({ is_pinned: updated.isPinned }).eq('id', id));
+          return updated;
+        }
+        return a;
+      })
     );
   };
 
   const addAssignment = (a: Omit<Assignment, 'id' | 'assignedDate' | 'submittedCount'>) => {
-
     const newA: Assignment = {
       ...a,
       id: `a_${Date.now()}`,
@@ -606,27 +801,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           })
         );
 
-        return {
+        const finalGradeRecord = {
           ...updated,
           avgScore: avg,
           rank,
           history,
         };
+
+        // Sync to Supabase
+        silentBgSync(supabase.from('grade_records').upsert([mapGradeRecordToDB(finalGradeRecord)]));
+
+        return finalGradeRecord;
       })
     );
   };
 
   const updateTeacherRemarks = (studentId: string, remarks: string) => {
     setGradeRecords((prev) =>
-      prev.map((r) => (r.studentId === studentId ? { ...r, teacherRemarks: remarks } : r))
+      prev.map((r) => {
+        if (r.studentId === studentId) {
+          const updated = { ...r, teacherRemarks: remarks };
+          silentBgSync(supabase.from('grade_records').update({ teacher_remarks: remarks }).eq('student_id', studentId));
+          return updated;
+        }
+        return r;
+      })
     );
     setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, notes: remarks } : s))
+      prev.map((s) => {
+        if (s.id === studentId) {
+          const updated = { ...s, notes: remarks };
+          silentBgSync(supabase.from('students').update({ notes: remarks }).eq('id', studentId));
+          return updated;
+        }
+        return s;
+      })
     );
   };
 
   const updateTeacherProfile = (p: Partial<TeacherProfile>) => {
-    setTeacherProfile((prev) => ({ ...prev, ...p }));
+    setTeacherProfile((prev) => {
+      const updated = { ...prev, ...p };
+      silentBgSync(supabase.from('teacher_profile').upsert([mapTeacherProfileToDB(updated)]));
+      return updated;
+    });
   };
 
   const markNotificationAsRead = (id: string) => {
@@ -649,14 +867,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [session, ...prev];
     });
+    silentBgSync(supabase.from('attendance_sessions').upsert([mapAttendanceToDB(session)]));
   };
 
   const deleteAttendanceSession = (sessionId: string) => {
     setAttendanceSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    silentBgSync(supabase.from('attendance_sessions').delete().eq('id', sessionId));
   };
 
   const submitExam = (submission: ExamSubmission) => {
     setSubmissions((prev) => [submission, ...prev]);
+    silentBgSync(supabase.from('exam_submissions').insert([{
+      id: submission.id,
+      exam_id: submission.examId,
+      student_id: submission.studentId,
+      student_name: submission.studentName,
+      class_name: submission.className,
+      submitted_at: submission.submittedAt,
+      answers: submission.answers,
+      auto_score: submission.autoScore,
+      essay_score: submission.essayScore,
+      total_score: submission.totalScore,
+      status: submission.status,
+      teacher_feedback: submission.teacherFeedback,
+    }]));
   };
 
   const resetToDefaultData = () => {
@@ -817,6 +1051,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearAllData,
         exportDatabaseJSON,
         importDatabaseJSON,
+        supabaseStatus,
+        supabaseMessage,
+        isSyncingWithSupabase,
+        checkSupabaseHealth,
+        syncAllToSupabase,
+        loadAllFromSupabase,
       }}
     >
 

@@ -11,6 +11,7 @@ import {
   Info,
   Shield,
   GraduationCap,
+  Cloud,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -24,6 +25,7 @@ export const Header: React.FC = () => {
     setCurrentRole,
     setActiveTab,
     logout,
+    supabaseStatus,
   } = useApp();
 
   const [isSchoolMenuOpen, setIsSchoolMenuOpen] = useState(false);
@@ -77,7 +79,36 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Right Controls */}
-          <div className="flex items-center gap-2 sm:gap-4 lg:gap-6 text-sm">
+          <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 text-sm">
+            {/* Supabase Cloud Status Indicator */}
+            <button
+              onClick={() => setActiveTab('settings')}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white border border-white/15 cursor-pointer text-xs"
+              title="Cơ sở dữ liệu đám mây Supabase - Bấm để vào Cài đặt"
+            >
+              <Cloud className="w-3.5 h-3.5 text-blue-200" />
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  supabaseStatus === 'connected'
+                    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                    : supabaseStatus === 'tables_missing'
+                    ? 'bg-amber-400 animate-pulse'
+                    : supabaseStatus === 'checking'
+                    ? 'bg-blue-300 animate-pulse'
+                    : 'bg-red-400'
+                }`}
+              />
+              <span className="hidden sm:inline font-medium text-[11px] text-blue-100">
+                {supabaseStatus === 'connected'
+                  ? 'Supabase: Đã kết nối'
+                  : supabaseStatus === 'tables_missing'
+                  ? 'Supabase: Cần tạo bảng'
+                  : supabaseStatus === 'checking'
+                  ? 'Supabase...'
+                  : 'Supabase'}
+              </span>
+            </button>
+
             {/* School Selector */}
             <div className="relative" ref={schoolRef}>
               <button
