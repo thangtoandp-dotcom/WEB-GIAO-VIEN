@@ -1,12 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Get credentials from environment variables or localStorage (allows user customization without re-building)
-const envUrl = import.meta.env.VITE_SUPABASE_URL || 'https://acdvkdsvpwdggkaukjmk.supabase.co';
-const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_u1yHdyKLgTKrwQisonv6Rg_PEmxawh5';
+// Safe fallback for environment variables
+const envUrl =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) ||
+  'https://acdvkdsvpwdggkaukjmk.supabase.co';
+const envAnonKey =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) ||
+  'sb_publishable_u1yHdyKLgTKrwQisonv6Rg_PEmxawh5';
 
 export const getSupabaseConfig = () => {
-  const customUrl = localStorage.getItem('thang_math_supabase_url');
-  const customKey = localStorage.getItem('thang_math_supabase_anon_key');
+  let customUrl: string | null = null;
+  let customKey: string | null = null;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      customUrl = localStorage.getItem('thang_math_supabase_url');
+      customKey = localStorage.getItem('thang_math_supabase_anon_key');
+    }
+  } catch {
+    // ignore
+  }
   return {
     url: customUrl?.trim() || envUrl.trim(),
     anonKey: customKey?.trim() || envAnonKey.trim(),

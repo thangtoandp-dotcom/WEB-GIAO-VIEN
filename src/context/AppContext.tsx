@@ -33,10 +33,13 @@ import {
   pushAllDataToSupabase,
   pullAllDataFromSupabase,
   mapClassToDB,
+  mapClassFromDB,
   mapStudentToDB,
+  mapStudentFromDB,
   mapQuestionToDB,
   mapExamToDB,
   mapGradeRecordToDB,
+  mapGradeRecordFromDB,
   mapAttendanceToDB,
   mapDocumentToDB,
   mapGameToDB,
@@ -225,8 +228,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_classes`);
       if (saved !== null) return JSON.parse(saved);
-      const isCustomized = localStorage.getItem(CUSTOMIZED_KEY);
-      if (isCustomized === 'true') return [];
       return INITIAL_CLASSES;
     } catch {
       return INITIAL_CLASSES;
@@ -239,13 +240,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved !== null) {
         return JSON.parse(saved);
       }
-      const isCustomized = localStorage.getItem(CUSTOMIZED_KEY);
-      if (isCustomized === 'true') {
-        return [];
-      }
-      return INITIAL_STUDENTS;
+      // Default to empty array [] so mock students NEVER flash or reappear unexpectedly
+      return [];
     } catch {
-      return INITIAL_STUDENTS;
+      return [];
     }
   });
 
@@ -271,11 +269,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_grades`);
       if (saved !== null) return JSON.parse(saved);
-      const isCustomized = localStorage.getItem(CUSTOMIZED_KEY);
-      if (isCustomized === 'true') return [];
-      return INITIAL_GRADE_RECORDS;
+      return [];
     } catch {
-      return INITIAL_GRADE_RECORDS;
+      return [];
     }
   });
 
@@ -439,19 +435,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSupabaseStatus('connected');
         setSupabaseMessage(res.message);
 
-        // Check if students exist in Supabase Cloud
+        // 1. Sync classes from Supabase Cloud
+        try {
+          const { data: dbClasses, error: errCls } = await supabase.from('classes').select('*');
+          if (!errCls && dbClasses && dbClasses.length > 0) {
+            const mappedCls = dbClasses.map(mapClassFromDB);
+            setClasses(mappedCls);
+            safeSetStorage(`${STORAGE_KEY}_classes`, mappedCls);
+          }
+        } catch (clsErr) {
+          console.warn('Supabase classes load notice:', clsErr);
+        }
+
+        // 2. Load students & grade records from Supabase Cloud
         try {
           const { data: dbStudents, error: errSt } = await supabase.from('students').select('*').limit(1000);
-          if (!errSt && dbStudents) {
-            const isCustomized = localStorage.getItem(CUSTOMIZED_KEY);
-            if (dbStudents.length > 0) {
-              const mapped = dbStudents.map(mapStudentFromDB);
-              setStudents(mapped);
-              safeSetStorage(`${STORAGE_KEY}_students`, mapped);
-              safeSetStorage(CUSTOMIZED_KEY, 'true');
-            } else if (isCustomized === 'true') {
-              setStudents([]);
-              safeSetStorage(`${STORAGE_KEY}_students`, []);
+          if (!errSt && dbStudents !== null) {
+            const mapped = dbStudents.map(mapStudentFromDB);
+            setStudents(mapped);
+            safeSetStorage(`${STORAGE_KEY}_students`, mapped);
+            safeSetStorage(CUSTOMIZED_KEY, 'true');
+
+            // Also load corresponding grade records
+            const { data: dbGrades, error: errGrades } = await supabase.from('grade_records').select('*').limit(1000);
+            if (!errGrades && dbGrades !== null) {
+              const mappedGrades = dbGrades.map(mapGradeRecordFromDB);
+              setGradeRecords(mappedGrades);
+              safeSetStorage(`${STORAGE_KEY}_grades`, mappedGrades);
             }
           }
         } catch (cloudErr) {
@@ -567,7 +577,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalTests: 0,
       recentScores: [],
     };
-    setStudents((prev) => [newStudent, ...prev]);
+    setStudents((prev) => {
+      const next = [newStudent, ...prev];
+      safeSetStorage(`${STORAGE_KEY}_students`, next);
+      safeSetStorage(CUSTOMIZED_KEY, 'true');
+      return next;
+    });
 
     // Also add empty grade record
     const newGrade: GradeRecord = {
@@ -578,14 +593,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       avgScore: 0,
       rank: 'Trung bình',
     };
-    setGradeRecords((prev) => [...prev, newGrade]);
+    setGradeRecords((prev) => {
+      const next = [...prev, newGrade];
+      safeSetStorage(`${STORAGE_KEY}_grades`, next);
+      return next;
+    });
 
     // Increment class student count
-    setClasses((prev) =>
-      prev.map((c) =>
+    setClasses((prev) => {
+      const next = prev.map((c) =>
         c.id === st.classId ? { ...c, totalStudents: c.totalStudents + 1 } : c
-      )
-    );
+      );
+      safeSetStorage(`${STORAGE_KEY}_classes`, next);
+      const targetCls = next.find((c) => c.id === st.classId);
+      if (targetCls) {
+        silentBgSync(supabase.from('classes').update({ total_students: targetCls.totalStudents }).eq('id', st.classId));
+      }
+      return next;
+    });
 
     // Background sync to Supabase
     silentBgSync(supabase.from('students').insert([mapStudentToDB(newStudent)]));
@@ -646,6 +671,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           c.id === st.classId ? { ...c, totalStudents: Math.max(0, c.totalStudents - 1) } : c
         );
         safeSetStorage(`${STORAGE_KEY}_classes`, next);
+        const updatedCls = next.find((c) => c.id === st.classId);
+        if (updatedCls) {
+          silentBgSync(supabase.from('classes').update({ total_students: updatedCls.totalStudents }).eq('id', st.classId));
+        }
         return next;
       });
     }
@@ -674,6 +703,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setClasses((prev) => {
       const next = prev.map((c) => {
         const remaining = students.filter((s) => s.classId === c.id && !idsSet.has(s.id)).length;
+        silentBgSync(supabase.from('classes').update({ total_students: remaining }).eq('id', c.id));
         return { ...c, totalStudents: remaining };
       });
       safeSetStorage(`${STORAGE_KEY}_classes`, next);
@@ -701,6 +731,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safeSetStorage(`${STORAGE_KEY}_classes`, next);
       return next;
     });
+    silentBgSync(supabase.from('classes').update({ total_students: 0 }).neq('id', ''));
     silentBgSync(supabase.from('students').delete().neq('id', ''));
     silentBgSync(supabase.from('grade_records').delete().neq('student_id', ''));
     setSelectedStudent(null);
@@ -1086,7 +1117,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTeacherProfile(INITIAL_TEACHER_PROFILE);
     setNotifications(INITIAL_NOTIFICATIONS);
     setSubmissions([]);
-    localStorage.clear();
+    
+    // Save to storage
+    safeSetStorage(`${STORAGE_KEY}_classes`, INITIAL_CLASSES);
+    safeSetStorage(`${STORAGE_KEY}_students`, INITIAL_STUDENTS);
+    safeSetStorage(`${STORAGE_KEY}_grades`, INITIAL_GRADE_RECORDS);
+    try {
+      localStorage.removeItem(CUSTOMIZED_KEY);
+    } catch {}
+
+    // Sync to Supabase
+    silentBgSync(supabase.from('classes').upsert(INITIAL_CLASSES.map(mapClassToDB)));
+    silentBgSync(supabase.from('students').upsert(INITIAL_STUDENTS.map(mapStudentToDB)));
+    silentBgSync(supabase.from('grade_records').upsert(INITIAL_GRADE_RECORDS.map(mapGradeRecordToDB)));
   };
 
   const clearAllData = () => {

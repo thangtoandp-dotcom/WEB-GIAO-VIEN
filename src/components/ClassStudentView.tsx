@@ -623,18 +623,52 @@ export const ClassStudentView: React.FC = () => {
                 {paginatedStudents.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center text-gray-400">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <Users className="w-8 h-8 text-gray-300" />
-                        <p className="font-semibold text-gray-600">
-                          {students.length === 0
-                            ? 'Danh sách học sinh đang trống (Bạn đã xóa sạch danh sách).'
-                            : 'Không tìm thấy học sinh nào phù hợp với bộ lọc tìm kiếm.'}
-                        </p>
-                        <p className="text-[11px] text-gray-400">
-                          {students.length === 0
-                            ? 'Thầy có thể bấm "Thêm học sinh" hoặc "Nhập Excel / CSV" để đưa học sinh thực tế vào hệ thống.'
-                            : 'Hãy thử thay đổi từ khóa hoặc bộ lọc lớp/khối.'}
-                        </p>
+                      <div className="flex flex-col items-center justify-center space-y-3">
+                        <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-[#0878D1]">
+                          <Users className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-gray-700">
+                            {students.length === 0
+                              ? 'Danh sách học sinh đang trống (Đã xóa theo thao tác của thầy)'
+                              : 'Không tìm thấy học sinh nào phù hợp với bộ lọc tìm kiếm.'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
+                            {students.length === 0
+                              ? 'Trạng thái trống đã được lưu cố định trên Supabase Cloud và trình duyệt. Thầy tải lại trang web (F5) dữ liệu vẫn được bảo toàn nguyên vẹn.'
+                              : 'Hãy thử thay đổi từ khóa hoặc bộ lọc lớp/khối.'}
+                          </p>
+                        </div>
+                        {students.length === 0 && (
+                          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                            <button
+                              onClick={() => setIsAddStudentOpen(true)}
+                              className="px-3.5 py-1.5 bg-[#0878D1] text-white rounded-lg text-xs font-semibold hover:bg-[#064A87] cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Thêm học sinh mới</span>
+                            </button>
+                            <button
+                              onClick={() => setIsImportStudentsOpen(true)}
+                              className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>Nhập từ Excel / CSV</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('Thầy có muốn nạp lại dữ liệu mẫu 10 học sinh THPT Đan Phượng để tham khảo không?')) {
+                                  resetToDefaultData();
+                                  showFeedback('Đã nạp lại dữ liệu mẫu!');
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-200 cursor-pointer flex items-center gap-1.5 border border-gray-200"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Nạp lại 10 HS mẫu</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
