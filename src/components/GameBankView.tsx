@@ -44,6 +44,9 @@ import {
   Check,
   AlertCircle,
   Maximize2,
+  Minimize2,
+  Expand,
+  Shrink,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
@@ -66,6 +69,51 @@ export const GameBankView: React.FC = () => {
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<'all' | '10' | '11' | '12'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGame, setActiveGame] = useState<GameItem | null>(null);
+
+  // Fullscreen state for active game runner
+  const [isFullScreenMode, setIsFullScreenMode] = useState<boolean>(true);
+  const [isNativeFullscreen, setIsNativeFullscreen] = useState<boolean>(false);
+  const gameModalContainerRef = useRef<HTMLDivElement>(null);
+
+  // Sync native browser fullscreen change event
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsNativeFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Keyboard shortcut: Escape exits native fullscreen or closes game runner
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && activeGame) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        } else {
+          setActiveGame(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeGame]);
+
+  const toggleNativeFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (gameModalContainerRef.current) {
+        gameModalContainerRef.current.requestFullscreen().catch((err) => {
+          console.warn('Native fullscreen request failed:', err);
+        });
+      }
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   // Upload / Create Game Modal State
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -437,7 +485,10 @@ export const GameBankView: React.FC = () => {
                       )}
 
                       <button
-                        onClick={() => setActiveGame(game)}
+                        onClick={() => {
+                          setActiveGame(game);
+                          setIsFullScreenMode(true);
+                        }}
                         className="px-3 py-1.5 rounded-lg bg-[#0878D1] hover:bg-[#064A87] text-white font-semibold text-xs flex items-center gap-1 shadow-sm transition-colors group-hover:scale-105"
                       >
                         <Play className="w-3.5 h-3.5 fill-white" />
@@ -548,71 +599,141 @@ export const GameBankView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. ACTIVE GAME MODAL RUNNER */}
+      {/* 4. ACTIVE GAME MODAL RUNNER (EXPANDED FULLSCREEN & IMMERSIVE) */}
       {activeGame && (
-        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-5xl w-full p-4 sm:p-6 shadow-2xl border border-blue-200 max-h-[95vh] overflow-y-auto flex flex-col justify-between">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-100 text-[#0878D1]">
+        <div
+          ref={gameModalContainerRef}
+          className={`fixed inset-0 z-50 transition-all duration-200 ${
+            isFullScreenMode
+              ? 'w-screen h-screen bg-[#070D1E] flex flex-col overflow-hidden p-0 m-0'
+              : 'bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-hidden'
+          }`}
+        >
+          <div
+            className={`transition-all duration-200 flex flex-col ${
+              isFullScreenMode
+                ? 'w-full h-full bg-[#0B132B] overflow-hidden flex-1'
+                : 'bg-[#0B132B] rounded-2xl max-w-7xl w-full h-[95vh] shadow-2xl border border-slate-700/80 overflow-hidden flex-1'
+            }`}
+          >
+            {/* Modal Top Navigation & Control Bar */}
+            <div className="bg-[#0B132B] border-b border-slate-700/70 text-white px-3 sm:px-5 py-2.5 flex items-center justify-between shrink-0 shadow-md select-none z-10">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs shrink-0">
                   {activeGame.categoryName}
                 </span>
-                <h3 className="text-base sm:text-lg font-bold text-[#064A87]">
+                <h3 className="text-sm sm:text-base font-bold text-white truncate max-w-[200px] sm:max-w-md md:max-w-xl">
                   {activeGame.title}
                 </h3>
+                <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] border border-emerald-500/30 font-medium shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Đang mở tràn màn hình
+                </span>
                 {activeGame.author && (
-                  <span className="text-xs text-gray-400 hidden sm:inline">
+                  <span className="text-xs text-slate-400 hidden xl:inline shrink-0">
                     • Tác giả: {activeGame.author}
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* Action Buttons Toolbar */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                {/* 1. Native Fullscreen Button (F11 style) */}
+                <button
+                  onClick={toggleNativeFullscreen}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/70 hover:border-cyan-400 text-xs font-medium flex items-center gap-1.5 transition-all shadow-sm"
+                  title={isNativeFullscreen ? 'Thoát toàn màn hình F11' : 'Toàn màn hình máy tính (F11)'}
+                >
+                  {isNativeFullscreen ? (
+                    <>
+                      <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="hidden sm:inline">Thu nhỏ F11</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="w-3.5 h-3.5 text-cyan-400" />
+                      <span className="hidden sm:inline">Toàn màn hình máy tính (F11)</span>
+                    </>
+                  )}
+                </button>
+
+                {/* 2. Window Mode Toggle */}
+                <button
+                  onClick={() => setIsFullScreenMode(!isFullScreenMode)}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/70 hover:border-indigo-400 text-xs font-medium flex items-center gap-1.5 transition-all shadow-sm"
+                  title={isFullScreenMode ? 'Thu nhỏ về khung cửa sổ' : 'Mở rộng tràn toàn màn hình'}
+                >
+                  {isFullScreenMode ? (
+                    <>
+                      <Shrink className="w-3.5 h-3.5 text-indigo-300" />
+                      <span className="hidden md:inline">Khung cửa sổ</span>
+                    </>
+                  ) : (
+                    <>
+                      <Expand className="w-3.5 h-3.5 text-indigo-300" />
+                      <span className="hidden md:inline">Tràn màn hình</span>
+                    </>
+                  )}
+                </button>
+
+                {/* 3. External Link tab if available */}
                 {activeGame.embedUrl && (
                   <a
                     href={activeGame.embedUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1.5 rounded-lg text-gray-500 hover:text-[#0878D1] hover:bg-gray-100 flex items-center gap-1 text-xs"
-                    title="Mở trong tab mới"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/70 text-xs font-medium flex items-center gap-1.5 hover:text-cyan-300 transition-all shadow-sm"
+                    title="Mở trò chơi trong tab trình duyệt riêng"
                   >
-                    <ExternalLink className="w-4 h-4" />
+                    <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
                     <span className="hidden sm:inline">Tab mới</span>
                   </a>
                 )}
+
+                {/* 4. Close Game Button */}
                 <button
-                  onClick={() => setActiveGame(null)}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-                  title="Đóng game"
+                  onClick={() => {
+                    if (document.fullscreenElement) {
+                      document.exitFullscreen().catch(() => {});
+                    }
+                    setActiveGame(null);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-semibold flex items-center gap-1 transition-all shadow-sm ml-1"
+                  title="Đóng trò chơi (Esc)"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
+                  <span className="hidden sm:inline">Đóng</span>
                 </button>
               </div>
             </div>
 
-            {/* Modal Game Component Switcher */}
-            <div className="py-4 flex-1">
-              {/* Case 1: Custom Embed URL */}
+            {/* Modal Game Arena Body (Full-height without clipping) */}
+            <div className="flex-1 w-full h-full min-h-0 relative flex flex-col overflow-hidden bg-slate-950">
+              {/* Case 1: Custom Embed URL (Wordwall, GeoGebra, Quizizz, external html game) */}
               {activeGame.gameSourceType === 'embed_url' && activeGame.embedUrl && (
-                <div className="space-y-3">
-                  <div className="w-full h-[520px] rounded-xl overflow-hidden border border-gray-300 shadow-inner bg-gray-50">
-                    <iframe
-                      src={activeGame.embedUrl}
-                      title={activeGame.title}
-                      className="w-full h-full border-0"
-                      allow="fullscreen; autoplay; clipboard-write; encrypted-media"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Nguồn game: Nhúng trực tiếp từ liên kết ngoài an toàn</span>
+                <div className="flex-1 w-full h-full min-h-0 flex flex-col relative overflow-hidden bg-slate-950">
+                  <iframe
+                    src={activeGame.embedUrl}
+                    title={activeGame.title}
+                    className="w-full h-full flex-1 border-0 block bg-slate-900"
+                    allow="fullscreen; autoplay; clipboard-write; encrypted-media; picture-in-picture; orientation; accelerometer; gyroscope"
+                    allowFullScreen={true}
+                  />
+                  <div className="py-1 px-3 bg-slate-900/95 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span className="text-slate-300 text-[11px] sm:text-xs">
+                        Giao diện đã mở rộng 100% tràn toàn bộ màn hình máy tính để thao tác đầy đủ mọi tính năng.
+                      </span>
+                    </div>
                     <a
                       href={activeGame.embedUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[#0878D1] font-semibold hover:underline flex items-center gap-1"
+                      className="text-cyan-400 hover:text-cyan-300 font-medium hover:underline flex items-center gap-1 text-[11px] sm:text-xs shrink-0 ml-2"
                     >
-                      <span>Nếu không tải được, nhấn vào đây để mở trực tiếp</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Mở link gốc</span>
+                      <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
                 </div>
@@ -620,31 +741,39 @@ export const GameBankView: React.FC = () => {
 
               {/* Case 2: Custom HTML content */}
               {activeGame.gameSourceType === 'html_content' && activeGame.htmlContent && (
-                <div className="w-full h-[520px] rounded-xl overflow-hidden border border-gray-300 shadow-inner bg-white">
+                <div className="flex-1 w-full h-full min-h-0 flex flex-col relative overflow-hidden bg-slate-950">
                   <iframe
                     srcDoc={activeGame.htmlContent}
                     title={activeGame.title}
-                    className="w-full h-full border-0"
-                    sandbox="allow-scripts allow-same-origin"
+                    className="w-full h-full flex-1 border-0 block bg-white"
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
+                    allow="fullscreen; autoplay; clipboard-write; encrypted-media"
+                    allowFullScreen={true}
                   />
                 </div>
               )}
 
               {/* Case 3: Custom Quiz Game */}
               {activeGame.gameSourceType === 'quiz_game' && activeGame.quizQuestions && (
-                <CustomQuizGame questions={activeGame.quizQuestions} title={activeGame.title} />
+                <div className="flex-1 w-full h-full min-h-0 overflow-y-auto bg-gradient-to-b from-slate-900 to-slate-950 p-4 sm:p-8 flex items-center justify-center">
+                  <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl p-6 border border-slate-200 my-auto">
+                    <CustomQuizGame questions={activeGame.quizQuestions} title={activeGame.title} />
+                  </div>
+                </div>
               )}
 
               {/* Case 4: Built-in Games */}
               {(!activeGame.gameSourceType || activeGame.gameSourceType === 'built_in') && (
-                <>
-                  {activeGame.id === 'game-speed-math' && <SpeedMathGame onClose={() => setActiveGame(null)} />}
-                  {activeGame.id === 'game-math-match' && <MemoryMatchGame onClose={() => setActiveGame(null)} />}
-                  {activeGame.id === 'game-math-millionaire' && <MillionaireGame onClose={() => setActiveGame(null)} />}
-                  {activeGame.id === 'game-caro' && <CaroGame onClose={() => setActiveGame(null)} />}
-                  {activeGame.id === 'game-2048-math' && <Game2048 onClose={() => setActiveGame(null)} />}
-                  {activeGame.id === 'game-sudoku' && <SudokuGame onClose={() => setActiveGame(null)} />}
-                </>
+                <div className="flex-1 w-full h-full min-h-0 overflow-y-auto bg-gradient-to-b from-slate-900 to-slate-950 p-2 sm:p-6 flex items-center justify-center">
+                  <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl p-4 sm:p-6 border border-slate-200 my-auto">
+                    {activeGame.id === 'game-speed-math' && <SpeedMathGame onClose={() => setActiveGame(null)} />}
+                    {activeGame.id === 'game-math-match' && <MemoryMatchGame onClose={() => setActiveGame(null)} />}
+                    {activeGame.id === 'game-math-millionaire' && <MillionaireGame onClose={() => setActiveGame(null)} />}
+                    {activeGame.id === 'game-caro' && <CaroGame onClose={() => setActiveGame(null)} />}
+                    {activeGame.id === 'game-2048-math' && <Game2048 onClose={() => setActiveGame(null)} />}
+                    {activeGame.id === 'game-sudoku' && <SudokuGame onClose={() => setActiveGame(null)} />}
+                  </div>
+                </div>
               )}
             </div>
           </div>
