@@ -114,3 +114,28 @@ export const formatFileSize = (bytes: number): string => {
   if (kb < 1024) return `${Math.round(kb)} KB`;
   return `${(kb / 1024).toFixed(1)} MB`;
 };
+
+export const detectAttachmentType = (
+  fileName: string,
+  mimeType?: string
+): 'word' | 'excel' | 'html' | 'video' | 'pdf' | 'other' => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (['doc', 'docx'].includes(ext) || mimeType?.includes('word')) return 'word';
+  if (
+    ['xls', 'xlsx', 'csv'].includes(ext) ||
+    mimeType?.includes('excel') ||
+    mimeType?.includes('spreadsheet') ||
+    mimeType?.includes('csv')
+  ) {
+    return 'excel';
+  }
+  if (['html', 'htm'].includes(ext) || mimeType?.includes('html')) return 'html';
+  if (
+    ['mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv'].includes(ext) ||
+    mimeType?.startsWith('video/')
+  ) {
+    return 'video';
+  }
+  if (ext === 'pdf' || mimeType?.includes('pdf')) return 'pdf';
+  return 'other';
+};

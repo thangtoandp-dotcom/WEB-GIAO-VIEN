@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   ClassRoom,
   Student,
+  StudentStatus,
   Question,
   Exam,
   GradeRecord,
@@ -11,6 +12,7 @@ import {
   AppNotification,
   ExamSubmission,
   AttendanceSession,
+  LeaveRequest,
   GameItem,
   ClassActivity,
 } from '../types';
@@ -25,6 +27,7 @@ import {
   INITIAL_TEACHER_PROFILE,
   INITIAL_NOTIFICATIONS,
   INITIAL_ATTENDANCE_SESSIONS,
+  INITIAL_LEAVE_REQUESTS,
   INITIAL_GAMES,
   INITIAL_ACTIVITIES,
 } from '../data/mockData';
@@ -166,8 +169,16 @@ interface AppContextType {
 
   updateGrade: (
     studentId: string,
-    field: 'tx1' | 'tx2' | 'tx3' | 'gk' | 'ck',
+    field: 'tx1' | 'tx2' | 'tx3' | 'tx4' | 'gk' | 'ck',
     newVal: number,
+    reason?: string
+  ) => void;
+  updateGradesBatch: (
+    updates: {
+      studentId: string;
+      field: 'tx1' | 'tx2' | 'tx3' | 'tx4' | 'gk' | 'ck';
+      newVal: number;
+    }[],
     reason?: string
   ) => void;
   updateTeacherRemarks: (studentId: string, remarks: string) => void;
@@ -177,6 +188,10 @@ interface AppContextType {
   clearAllNotifications: () => void;
   saveAttendanceSession: (session: AttendanceSession) => void;
   deleteAttendanceSession: (sessionId: string) => void;
+  leaveRequests: LeaveRequest[];
+  addLeaveRequest: (lr: Omit<LeaveRequest, 'id' | 'createdAt'>) => void;
+  updateLeaveRequest: (id: string, updates: Partial<LeaveRequest>) => void;
+  deleteLeaveRequest: (id: string) => void;
 
   resetToDefaultData: () => void;
   clearAllData: () => void;
@@ -236,7 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return true;
     }
   });
-  const [selectedSchoolYear, setSelectedSchoolYear] = useState('2025-2026');
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState('2026-2027');
   const [selectedSemester, setSelectedSemester] = useState('Học kỳ 2');
   const [selectedClassId, setSelectedClassId] = useState('all');
 
@@ -266,7 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           parsed.some((c: any) => c.name === '12A12') &&
           parsed.find((c: any) => c.name === '12A3')?.totalStudents === 52
         ) {
-          return parsed;
+          return parsed.map((c: any) => ({ ...c, schoolYear: '2026-2027' }));
         }
       }
       return INITIAL_CLASSES;
@@ -367,6 +382,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return saved !== null ? JSON.parse(saved) : INITIAL_ATTENDANCE_SESSIONS;
     } catch {
       return INITIAL_ATTENDANCE_SESSIONS;
+    }
+  });
+
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_leave_requests`);
+      return saved !== null ? JSON.parse(saved) : INITIAL_LEAVE_REQUESTS;
+    } catch {
+      return INITIAL_LEAVE_REQUESTS;
     }
   });
 
@@ -1186,27 +1210,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateGrade = (
     studentId: string,
-    field: 'tx1' | 'tx2' | 'tx3' | 'gk' | 'ck',
+    field: 'tx1' | 'tx2' | 'tx3' | 'tx4' | 'gk' | 'ck',
     newVal: number,
     reason?: string
   ) => {
-    setGradeRecords((prev) =>
-      prev.map((rec) => {
+    setGradeRecords((prev) => {
+      const next = prev.map((rec) => {
         if (rec.studentId !== studentId) return rec;
 
         const oldVal = rec[field] ?? 0;
         const updated = { ...rec, [field]: newVal };
 
-        // Recalculate average: (tx1 + tx2 + tx3 + gk*2 + ck*3) / 8
-        const tx1 = updated.tx1 ?? 0;
-        const tx2 = updated.tx2 ?? 0;
-        const tx3 = updated.tx3 ?? 0;
-        const gk = updated.gk ?? 0;
-        const ck = updated.ck ?? 0;
+        // 4 Thường xuyên (HS1), 1 Giữa kỳ (HS2), 1 Cuối kỳ (HS3)
+        // Chuẩn Thông tư 22: (TX1 + TX2 + TX3 + TX4 + GK*2 + CK*3) / 9
+        const scoresWithWeights: { score: number | undefined; weight: number }[] = [
+          { score: updated.tx1, weight: 1 },
+          { score: updated.tx2, weight: 1 },
+          { score: updated.tx3, weight: 1 },
+          { score: updated.tx4, weight: 1 },
+          { score: updated.gk, weight: 2 },
+          { score: updated.ck, weight: 3 },
+        ];
 
-        const sum = tx1 + tx2 + tx3 + gk * 2 + ck * 3;
-        const totalWeights = 1 + 1 + 1 + 2 + 3;
-        const avg = Number((sum / totalWeights).toFixed(1));
+        let sumWeighted = 0;
+        let totalWeights = 0;
+
+        scoresWithWeights.forEach(({ score, weight }) => {
+          if (typeof score === 'number' && !isNaN(score) && score >= 0) {
+            sumWeighted += score * weight;
+            totalWeights += weight;
+          }
+        });
+
+        // Điểm trung bình môn học kỳ
+        const avg = totalWeights > 0 ? Number((sumWeighted / totalWeights).toFixed(1)) : 0;
 
         let rank: 'Giỏi' | 'Khá' | 'Trung bình' | 'Yếu' = 'Trung bình';
         if (avg >= 8.0) rank = 'Giỏi';
@@ -1214,28 +1251,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         else if (avg >= 5.0) rank = 'Trung bình';
         else rank = 'Yếu';
 
-        const history = updated.history || [];
+        const history = [...(updated.history || [])];
         history.push({
           timestamp: new Date().toLocaleTimeString('vi-VN') + ' ' + new Date().toLocaleDateString('vi-VN'),
           changedBy: 'Thầy Bùi Ngọc Thắng',
-          field,
+          field: field.toUpperCase(),
           oldVal,
           newVal,
-          reason: reason || 'Cập nhật điểm trực tiếp trên bảng điểm',
+          reason: reason || 'Cập nhật trực tiếp trên bảng điểm',
         });
 
-        // Update student state as well
-        setStudents((sList) =>
-          sList.map((st) => {
-            if (st.id === studentId) {
-              const status = avg < 5.0 ? 'danger' : avg < 6.5 ? 'warning' : 'good';
-              return { ...st, avgScore: avg, status };
-            }
-            return st;
-          })
-        );
-
-        const finalGradeRecord = {
+        const finalGradeRecord: GradeRecord = {
           ...updated,
           avgScore: avg,
           rank,
@@ -1243,11 +1269,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
 
         // Sync to Supabase
-        silentBgSync(supabase.from('grade_records').upsert([mapGradeRecordToDB(finalGradeRecord)]));
+        silentBgSync(supabase.from('grade_records').upsert([mapGradeRecordToDB(finalGradeRecord)], { onConflict: 'student_id' }));
 
         return finalGradeRecord;
-      })
-    );
+      });
+
+      safeSetStorage(`${STORAGE_KEY}_grades`, next);
+
+      // Cập nhật điểm TB và trạng thái trong danh sách học sinh
+      const targetRecord = next.find((g) => g.studentId === studentId);
+      if (targetRecord) {
+        setStudents((sList) => {
+          const sNext = sList.map((st) => {
+            if (st.id === studentId) {
+              const status: StudentStatus = targetRecord.avgScore < 5.0 ? 'danger' : targetRecord.avgScore < 6.5 ? 'warning' : 'good';
+              return { ...st, avgScore: targetRecord.avgScore, status };
+            }
+            return st;
+          });
+          safeSetStorage(`${STORAGE_KEY}_students`, sNext);
+          return sNext;
+        });
+      }
+
+      return next;
+    });
+  };
+
+  const updateGradesBatch = (
+    updates: {
+      studentId: string;
+      field: 'tx1' | 'tx2' | 'tx3' | 'tx4' | 'gk' | 'ck';
+      newVal: number;
+    }[],
+    reason?: string
+  ) => {
+    if (!updates || updates.length === 0) return;
+    const updateMap = new Map<string, { field: 'tx1' | 'tx2' | 'tx3' | 'tx4' | 'gk' | 'ck'; newVal: number }[]>();
+    updates.forEach((u) => {
+      const list = updateMap.get(u.studentId) || [];
+      list.push({ field: u.field, newVal: u.newVal });
+      updateMap.set(u.studentId, list);
+    });
+
+    setGradeRecords((prev) => {
+      const next = prev.map((rec) => {
+        const studentUpdates = updateMap.get(rec.studentId);
+        if (!studentUpdates) return rec;
+
+        let updated = { ...rec };
+        const history = [...(updated.history || [])];
+
+        studentUpdates.forEach(({ field, newVal }) => {
+          const oldVal = updated[field] ?? 0;
+          updated[field] = newVal;
+          history.push({
+            timestamp: new Date().toLocaleTimeString('vi-VN') + ' ' + new Date().toLocaleDateString('vi-VN'),
+            changedBy: 'Thầy Bùi Ngọc Thắng',
+            field: field.toUpperCase(),
+            oldVal,
+            newVal,
+            reason: reason || 'Nhập điểm hàng loạt theo đợt kiểm tra',
+          });
+        });
+
+        const scoresWithWeights = [
+          { score: updated.tx1, weight: 1 },
+          { score: updated.tx2, weight: 1 },
+          { score: updated.tx3, weight: 1 },
+          { score: updated.tx4, weight: 1 },
+          { score: updated.gk, weight: 2 },
+          { score: updated.ck, weight: 3 },
+        ];
+
+        let sumWeighted = 0;
+        let totalWeights = 0;
+        scoresWithWeights.forEach(({ score, weight }) => {
+          if (typeof score === 'number' && !isNaN(score) && score >= 0) {
+            sumWeighted += score * weight;
+            totalWeights += weight;
+          }
+        });
+
+        const avg = totalWeights > 0 ? Number((sumWeighted / totalWeights).toFixed(1)) : 0;
+        let rank: 'Giỏi' | 'Khá' | 'Trung bình' | 'Yếu' = 'Trung bình';
+        if (avg >= 8.0) rank = 'Giỏi';
+        else if (avg >= 6.5) rank = 'Khá';
+        else if (avg >= 5.0) rank = 'Trung bình';
+        else rank = 'Yếu';
+
+        const finalRecord: GradeRecord = {
+          ...updated,
+          avgScore: avg,
+          rank,
+          history,
+        };
+
+        silentBgSync(supabase.from('grade_records').upsert([mapGradeRecordToDB(finalRecord)], { onConflict: 'student_id' }));
+        return finalRecord;
+      });
+
+      safeSetStorage(`${STORAGE_KEY}_grades`, next);
+
+      setStudents((sList) => {
+        const sNext = sList.map((st) => {
+          const g = next.find((rec) => rec.studentId === st.id);
+          if (g) {
+            const status: StudentStatus = g.avgScore < 5.0 ? 'danger' : g.avgScore < 6.5 ? 'warning' : 'good';
+            return { ...st, avgScore: g.avgScore, status };
+          }
+          return st;
+        });
+        safeSetStorage(`${STORAGE_KEY}_students`, sNext);
+        return sNext;
+      });
+
+      return next;
+    });
   };
 
   const updateTeacherRemarks = (studentId: string, remarks: string) => {
@@ -1294,19 +1432,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saveAttendanceSession = (session: AttendanceSession) => {
     setAttendanceSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === session.id);
+      let next: AttendanceSession[];
       if (idx >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[idx] = session;
-        return next;
+      } else {
+        next = [session, ...prev];
       }
-      return [session, ...prev];
+      safeSetStorage(`${STORAGE_KEY}_attendance`, next);
+      return next;
     });
     silentBgSync(supabase.from('attendance_sessions').upsert([mapAttendanceToDB(session)]));
   };
 
   const deleteAttendanceSession = (sessionId: string) => {
-    setAttendanceSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    setAttendanceSessions((prev) => {
+      const next = prev.filter((s) => s.id !== sessionId);
+      safeSetStorage(`${STORAGE_KEY}_attendance`, next);
+      return next;
+    });
     silentBgSync(supabase.from('attendance_sessions').delete().eq('id', sessionId));
+  };
+
+  const addLeaveRequest = (lr: Omit<LeaveRequest, 'id' | 'createdAt'>) => {
+    const newLr: LeaveRequest = {
+      ...lr,
+      id: `lr-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setLeaveRequests((prev) => {
+      const next = [newLr, ...prev];
+      safeSetStorage(`${STORAGE_KEY}_leave_requests`, next);
+      return next;
+    });
+  };
+
+  const updateLeaveRequest = (id: string, updates: Partial<LeaveRequest>) => {
+    setLeaveRequests((prev) => {
+      const next = prev.map((item) => (item.id === id ? { ...item, ...updates } : item));
+      safeSetStorage(`${STORAGE_KEY}_leave_requests`, next);
+      return next;
+    });
+  };
+
+  const deleteLeaveRequest = (id: string) => {
+    setLeaveRequests((prev) => {
+      const next = prev.filter((item) => item.id !== id);
+      safeSetStorage(`${STORAGE_KEY}_leave_requests`, next);
+      return next;
+    });
   };
 
   const submitExam = (submission: ExamSubmission) => {
@@ -1370,7 +1544,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const exportDatabaseJSON = () => {
     const payload = {
-      app: 'Toán học cùng thầy Thắng',
+      app: 'WEB QUẢN TRỊ LỚP HỌC',
       school: 'Trường THPT Đan Phượng',
       exportDate: new Date().toISOString(),
       classes,
@@ -1490,12 +1664,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteDocument,
         addAssignment,
         updateGrade,
+        updateGradesBatch,
         updateTeacherRemarks,
         updateTeacherProfile,
         markNotificationAsRead,
         clearAllNotifications,
         saveAttendanceSession,
         deleteAttendanceSession,
+        leaveRequests,
+        addLeaveRequest,
+        updateLeaveRequest,
+        deleteLeaveRequest,
         resetToDefaultData,
         clearAllData,
         exportDatabaseJSON,

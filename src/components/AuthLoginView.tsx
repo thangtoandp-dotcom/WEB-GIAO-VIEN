@@ -70,8 +70,8 @@ export const AuthLoginView: React.FC = () => {
             <h1 className="font-extrabold text-base sm:text-lg tracking-wide uppercase">
               Trường THPT Đan Phượng
             </h1>
-            <p className="text-xs text-blue-200">
-              Cổng Giáo Dục & Khảo Thí Toán Học Trực Tuyến
+            <p className="text-xs text-blue-200 font-medium">
+              WEB QUẢN TRỊ LỚP HỌC · THPT Đan Phượng
             </p>
           </div>
         </div>

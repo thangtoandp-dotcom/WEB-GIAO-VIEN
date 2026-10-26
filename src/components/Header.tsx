@@ -70,7 +70,7 @@ export const Header: React.FC = () => {
             </div>
             <div>
               <div className="text-xl lg:text-2xl font-bold tracking-wide text-white drop-shadow-sm flex items-center gap-2">
-                <span>Toán học cùng thầy Thắng</span>
+                <span>WEB QUẢN TRỊ LỚP HỌC</span>
               </div>
               <p className="text-xs text-blue-100 italic tracking-wider opacity-90">
                 Kiến thức hôm nay – Tương lai ngày mai

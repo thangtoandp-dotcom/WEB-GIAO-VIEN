@@ -56,7 +56,7 @@ const MainLayout: React.FC = () => {
       <footer className="bg-white border-t border-blue-100 py-3.5 px-6 text-xs text-[#64748B] shadow-inner mt-auto">
         <div className="max-w-[1920px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
           <div>
-            <span>© 2026 - Toán học cùng thầy Thắng | Trường THPT Đan Phượng | Email: thangtoandp@gmail.com</span>
+            <span>© 2026 - WEB QUẢN TRỊ LỚP HỌC | Thầy Bùi Ngọc Thắng - THPT Đan Phượng | Email: thangtoandp@gmail.com</span>
           </div>
           <div className="flex items-center gap-1.5 text-[#0878D1] font-semibold">
             <GraduationCap className="w-4 h-4" />

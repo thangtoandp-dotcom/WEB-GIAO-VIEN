@@ -34,7 +34,7 @@ export const mapClassFromDB = (row: any): ClassRoom => ({
   id: row.id,
   name: row.name,
   grade: row.grade,
-  schoolYear: row.school_year || '2025-2026',
+  schoolYear: row.school_year || '2026-2027',
   totalStudents: row.total_students || 0,
   room: row.room || '',
   teacher: row.teacher || '',
@@ -155,6 +155,7 @@ export const mapGradeRecordToDB = (g: GradeRecord) => ({
   tx1: g.tx1,
   tx2: g.tx2,
   tx3: g.tx3,
+  tx4: g.tx4,
   gk: g.gk,
   ck: g.ck,
   avg_score: g.avgScore || 0,
@@ -168,11 +169,12 @@ export const mapGradeRecordFromDB = (row: any): GradeRecord => ({
   studentCode: row.student_code,
   studentName: row.student_name,
   className: row.class_name,
-  tx1: row.tx1 !== null ? Number(row.tx1) : undefined,
-  tx2: row.tx2 !== null ? Number(row.tx2) : undefined,
-  tx3: row.tx3 !== null ? Number(row.tx3) : undefined,
-  gk: row.gk !== null ? Number(row.gk) : undefined,
-  ck: row.ck !== null ? Number(row.ck) : undefined,
+  tx1: row.tx1 !== null && row.tx1 !== undefined ? Number(row.tx1) : undefined,
+  tx2: row.tx2 !== null && row.tx2 !== undefined ? Number(row.tx2) : undefined,
+  tx3: row.tx3 !== null && row.tx3 !== undefined ? Number(row.tx3) : undefined,
+  tx4: row.tx4 !== null && row.tx4 !== undefined ? Number(row.tx4) : undefined,
+  gk: row.gk !== null && row.gk !== undefined ? Number(row.gk) : undefined,
+  ck: row.ck !== null && row.ck !== undefined ? Number(row.ck) : undefined,
   avgScore: Number(row.avg_score) || 0,
   rank: row.rank || 'Trung bình',
   teacherRemarks: row.teacher_remarks,
@@ -311,6 +313,7 @@ export const mapActivityToDB = (a: ClassActivity) => ({
   is_pinned: a.isPinned ?? false,
   author: a.author,
   created_date: a.createdDate,
+  attachments: a.attachments || [],
 });
 
 export const mapActivityFromDB = (row: any): ClassActivity => ({
@@ -334,6 +337,7 @@ export const mapActivityFromDB = (row: any): ClassActivity => ({
   isPinned: row.is_pinned ?? false,
   author: row.author,
   createdDate: row.created_date,
+  attachments: Array.isArray(row.attachments) ? row.attachments : [],
 });
 
 export const mapTeacherProfileToDB = (p: TeacherProfile) => ({

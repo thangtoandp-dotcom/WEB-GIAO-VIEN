@@ -74,7 +74,7 @@ export const ClassStudentView: React.FC = () => {
   // New Class Form State
   const [newClassName, setNewClassName] = useState('');
   const [newClassGrade, setNewClassGrade] = useState<GradeLevel>(10);
-  const [newClassYear, setNewClassYear] = useState('2025-2026');
+  const [newClassYear, setNewClassYear] = useState('2026-2027');
   const [newClassRoom, setNewClassRoom] = useState('Phòng 205');
   const [newClassDesc, setNewClassDesc] = useState('');
 

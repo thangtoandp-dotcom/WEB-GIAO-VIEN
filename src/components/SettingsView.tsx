@@ -447,9 +447,9 @@ export const SettingsView: React.FC = () => {
                   onChange={(e) => setSelectedSchoolYear(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
                 >
-                  <option value="2024-2025">Năm học 2024 - 2025</option>
                   <option value="2025-2026">Năm học 2025 - 2026</option>
-                  <option value="2026-2027">Năm học 2026 - 2027</option>
+                  <option value="2026-2027">Năm học 2026 - 2027 (Hiện tại)</option>
+                  <option value="2027-2028">Năm học 2027 - 2028</option>
                 </select>
               </div>
 

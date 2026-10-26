@@ -105,9 +105,10 @@ export interface GradeRecord {
   studentCode: string;
   studentName: string;
   className: string;
-  tx1?: number; // Thường xuyên 1 (15p)
-  tx2?: number; // Thường xuyên 2 (15p)
-  tx3?: number; // Thường xuyên 3
+  tx1?: number; // Thường xuyên 1 (HS1)
+  tx2?: number; // Thường xuyên 2 (HS1)
+  tx3?: number; // Thường xuyên 3 (HS1)
+  tx4?: number; // Thường xuyên 4 (HS1)
   gk?: number;  // Giữa kỳ (hệ số 2)
   ck?: number;  // Cuối kỳ (hệ số 3)
   avgScore: number;
@@ -161,13 +162,50 @@ export interface AppNotification {
 
 export type AttendanceStatus = 'present' | 'late' | 'excused' | 'unexcused';
 
+export type AbsenceReasonCategory =
+  | 'Ốm đau / Sức khỏe'
+  | 'Khám bệnh / Nhập viện'
+  | 'Việc gia đình hiếu hỉ'
+  | 'Thi HSG / Hoạt động Đoàn'
+  | 'Trùng lịch thi / Bồi dưỡng'
+  | 'Thời tiết / Hỏng xe'
+  | 'Vắng không phép'
+  | 'Khác';
+
+export type LeaveRequesterType =
+  | 'Phụ huynh gọi điện'
+  | 'Tin nhắn Zalo/SMS'
+  | 'Đơn xin phép viết tay'
+  | 'Học sinh trực tiếp'
+  | 'Giáo viên xác nhận';
+
 export interface StudentAttendanceEntry {
   studentId: string;
   studentCode: string;
   studentName: string;
   status: AttendanceStatus;
   note?: string;
+  reasonPreset?: AbsenceReasonCategory | string;
+  requesterType?: LeaveRequesterType;
   lateMinutes?: number;
+}
+
+export interface LeaveRequest {
+  id: string;
+  studentId: string;
+  studentCode: string;
+  studentName: string;
+  classId: string;
+  className: string;
+  fromDate: string; // YYYY-MM-DD
+  toDate: string;   // YYYY-MM-DD
+  reasonCategory: AbsenceReasonCategory;
+  detailedReason: string;
+  requesterType: LeaveRequesterType;
+  parentPhone?: string;
+  status: 'approved' | 'pending' | 'rejected';
+  createdAt: string;
+  notes?: string;
 }
 
 export interface AttendanceSession {
@@ -236,6 +274,18 @@ export interface GameLeaderboardEntry {
   badge?: string;
 }
 
+export type ActivityAttachmentType = 'word' | 'excel' | 'html' | 'video' | 'pdf' | 'other';
+
+export interface ActivityAttachment {
+  id: string;
+  name: string;
+  fileType: ActivityAttachmentType;
+  size: number; // bytes
+  urlOrData: string; // Base64 data URL or external URL
+  uploadedAt: string;
+  previewContent?: string; // Text content for HTML preview
+}
+
 export type ActivityCategory =
   | 'stem'
   | 'academic'
@@ -264,6 +314,7 @@ export interface ClassActivity {
   isPinned?: boolean;
   author: string;
   createdDate: string;
+  attachments?: ActivityAttachment[];
 }
 
 

@@ -689,7 +689,7 @@ export const QuestionBankView: React.FC = () => {
                 </div>
                 <div>
                   <p className="font-bold uppercase text-base">ĐỀ KIỂM TRA ĐỊNH KỲ MÔN TOÁN</p>
-                  <p className="font-bold">NĂM HỌC 2025 - 2026</p>
+                  <p className="font-bold">NĂM HỌC 2026 - 2027</p>
                   <p className="italic text-xs mt-1">Thời gian làm bài: 45 phút (không kể thời gian phát đề)</p>
                 </div>
               </div>

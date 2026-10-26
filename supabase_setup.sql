@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS public.grade_records (
   tx1 NUMERIC(4,2),
   tx2 NUMERIC(4,2),
   tx3 NUMERIC(4,2),
+  tx4 NUMERIC(4,2),
   gk NUMERIC(4,2),
   ck NUMERIC(4,2),
   avg_score NUMERIC(4,2) DEFAULT 0.00,
@@ -128,6 +129,7 @@ CREATE TABLE IF NOT EXISTS public.grade_records (
   history JSONB DEFAULT '[]'::jsonb,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.grade_records ADD COLUMN IF NOT EXISTS tx4 NUMERIC(4,2);
 
 CREATE INDEX IF NOT EXISTS idx_grade_records_class_name ON public.grade_records (class_name);
 CREATE INDEX IF NOT EXISTS idx_grade_records_rank ON public.grade_records (rank);
@@ -255,6 +257,7 @@ CREATE TABLE IF NOT EXISTS public.class_activities (
   is_pinned BOOLEAN DEFAULT false,
   author TEXT DEFAULT 'Thầy Bùi Ngọc Thắng',
   created_date TEXT,
+  attachments JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -260,7 +260,7 @@ export const DashboardView: React.FC = () => {
           <div>
             <p className="text-xs text-[#64748B] font-medium">Bài kiểm tra đã tổ chức</p>
             <h3 className="text-2xl font-bold text-[#12345A] leading-tight">{totalExamsCount}</h3>
-            <p className="text-[11px] text-[#64748B]">(Năm học 2025-2026)</p>
+            <p className="text-[11px] text-[#64748B]">(Năm học 2026-2027)</p>
           </div>
         </div>
 

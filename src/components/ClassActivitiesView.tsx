@@ -28,10 +28,22 @@ import {
   GraduationCap,
   Star,
   Film,
+  Paperclip,
+  Table,
+  Globe,
+  Eye,
+  FileCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { ClassActivity, ActivityCategory, GradeLevel } from '../types';
-import { compressImageFile, readFileAsDataUrl } from '../lib/fileUtils';
+import { ClassActivity, ActivityCategory, GradeLevel, ActivityAttachment, ActivityAttachmentType } from '../types';
+import {
+  compressImageFile,
+  readFileAsDataUrl,
+  readFileAsText,
+  downloadFile,
+  formatFileSize,
+  detectAttachmentType,
+} from '../lib/fileUtils';
 
 export const ClassActivitiesView: React.FC = () => {
   const {
@@ -74,6 +86,11 @@ export const ClassActivitiesView: React.FC = () => {
   const [formIsPinned, setFormIsPinned] = useState(false);
   const [videoInputType, setVideoInputType] = useState<'link' | 'file'>('link');
 
+  const [formAttachments, setFormAttachments] = useState<ActivityAttachment[]>([]);
+  const [isProcessingAttachments, setIsProcessingAttachments] = useState(false);
+  const [viewingHtmlAttachment, setViewingHtmlAttachment] = useState<ActivityAttachment | null>(null);
+  const [viewingVideoModal, setViewingVideoModal] = useState<{ url: string; title: string } | null>(null);
+
   // Filtered activities
   const filteredActivities = useMemo(() => {
     return activities.filter((act) => {
@@ -111,7 +128,11 @@ export const ClassActivitiesView: React.FC = () => {
     const allCommended = new Set(
       activities.flatMap((a) => a.featuredStudents || [])
     ).size;
-    return { total, stemCount, withVideos, allCommended };
+    const totalAttachments = activities.reduce(
+      (sum, a) => sum + (a.attachments?.length || 0),
+      0
+    );
+    return { total, stemCount, withVideos, allCommended, totalAttachments };
   }, [activities]);
 
   // Reset and open form for new creation
@@ -129,6 +150,7 @@ export const ClassActivitiesView: React.FC = () => {
     setFormImages([]);
     setFormNewImageUrl('');
     setFormIsPinned(false);
+    setFormAttachments([]);
     setIsUploadModalOpen(true);
   };
 
@@ -147,7 +169,131 @@ export const ClassActivitiesView: React.FC = () => {
     setFormImages(act.images || []);
     setFormNewImageUrl('');
     setFormIsPinned(Boolean(act.isPinned));
+    setFormAttachments(act.attachments || []);
     setIsUploadModalOpen(true);
+  };
+
+  // Handle files selection for Word, Excel, HTML, MP4
+  const handleAttachmentFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsProcessingAttachments(true);
+
+    const newItems: ActivityAttachment[] = [];
+    for (const file of Array.from(files)) {
+      const detected = detectAttachmentType(file.name, file.type);
+      try {
+        let urlOrData = '';
+        let previewContent: string | undefined = undefined;
+
+        if (detected === 'html') {
+          // Read HTML preview as text and also Base64
+          previewContent = await readFileAsText(file);
+          urlOrData = await readFileAsDataUrl(file);
+        } else if (detected === 'video') {
+          const sizeMb = file.size / (1024 * 1024);
+          if (sizeMb > 25) {
+            alert(
+              `Tệp video "${file.name}" dung lượng khá lớn (${sizeMb.toFixed(1)} MB). Hệ thống vẫn lưu trữ tạm thời trên trình duyệt, tuy nhiên để phát mượt mà trên mọi thiết bị phụ huynh/học sinh, thầy có thể nén file hoặc chia sẻ link YouTube/Drive nhé!`
+            );
+          }
+          urlOrData = await readFileAsDataUrl(file);
+          // If video URL field is still empty, auto suggest this as activity video
+          if (!formVideoUrl) {
+            setFormVideoUrl(urlOrData);
+            setFormVideoTitle(file.name.replace(/\.[^/.]+$/, ''));
+          }
+        } else {
+          urlOrData = await readFileAsDataUrl(file);
+        }
+
+        newItems.push({
+          id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: file.name,
+          fileType: detected,
+          size: file.size,
+          urlOrData,
+          uploadedAt: new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          previewContent,
+        });
+      } catch (err) {
+        console.warn('Lỗi đọc tệp đính kèm:', err);
+      }
+    }
+
+    setFormAttachments((prev) => [...prev, ...newItems]);
+    setIsProcessingAttachments(false);
+    e.target.value = '';
+  };
+
+  // Remove an attachment from form
+  const handleRemoveAttachment = (id: string) => {
+    setFormAttachments((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  // Download attachment
+  const handleDownloadAttachment = (att: ActivityAttachment) => {
+    downloadFile(att.urlOrData, att.name);
+  };
+
+  // Badge metadata helper for attachments
+  const getAttachmentBadge = (type: ActivityAttachmentType) => {
+    switch (type) {
+      case 'word':
+        return {
+          label: 'Microsoft Word',
+          shortLabel: 'Word',
+          badgeColor: 'bg-blue-600 text-white',
+          bgLight: 'bg-blue-50 text-blue-700 border-blue-200',
+          borderHover: 'hover:border-blue-400',
+          icon: FileText,
+        };
+      case 'excel':
+        return {
+          label: 'Bảng tính Excel',
+          shortLabel: 'Excel',
+          badgeColor: 'bg-emerald-600 text-white',
+          bgLight: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          borderHover: 'hover:border-emerald-400',
+          icon: Table,
+        };
+      case 'html':
+        return {
+          label: 'Trang web HTML',
+          shortLabel: 'HTML',
+          badgeColor: 'bg-amber-600 text-white',
+          bgLight: 'bg-amber-50 text-amber-700 border-amber-200',
+          borderHover: 'hover:border-amber-400',
+          icon: Globe,
+        };
+      case 'video':
+        return {
+          label: 'Video MP4',
+          shortLabel: 'MP4',
+          badgeColor: 'bg-purple-600 text-white',
+          bgLight: 'bg-purple-50 text-purple-700 border-purple-200',
+          borderHover: 'hover:border-purple-400',
+          icon: Film,
+        };
+      case 'pdf':
+        return {
+          label: 'Tài liệu PDF',
+          shortLabel: 'PDF',
+          badgeColor: 'bg-rose-600 text-white',
+          bgLight: 'bg-rose-50 text-rose-700 border-rose-200',
+          borderHover: 'hover:border-rose-400',
+          icon: FileText,
+        };
+      default:
+        return {
+          label: 'Tệp đính kèm',
+          shortLabel: 'Tệp',
+          badgeColor: 'bg-gray-600 text-white',
+          bgLight: 'bg-gray-50 text-gray-700 border-gray-200',
+          borderHover: 'hover:border-gray-400',
+          icon: Paperclip,
+        };
+    }
   };
 
   // Save form
@@ -189,6 +335,7 @@ export const ClassActivitiesView: React.FC = () => {
         videoTitle: formVideoTitle,
         images: imagesToSave,
         isPinned: formIsPinned,
+        attachments: formAttachments,
       });
     } else {
       addActivity({
@@ -209,6 +356,7 @@ export const ClassActivitiesView: React.FC = () => {
         images: imagesToSave,
         isPinned: formIsPinned,
         author: teacherProfile.name,
+        attachments: formAttachments,
       });
     }
 
@@ -348,7 +496,7 @@ export const ClassActivitiesView: React.FC = () => {
         </div>
 
         {/* Statistical Highlights Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/15 text-white">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mt-5 pt-4 border-t border-white/15 text-white">
           <div className="bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/15">
             <p className="text-[11px] text-blue-200">Tổng hoạt động</p>
             <p className="text-xl font-black mt-0.5 text-white">{stats.total}</p>
@@ -362,7 +510,11 @@ export const ClassActivitiesView: React.FC = () => {
             <p className="text-xl font-black mt-0.5 text-emerald-300">{stats.withVideos}</p>
           </div>
           <div className="bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/15">
-            <p className="text-[11px] text-blue-200">Học sinh được biểu dương</p>
+            <p className="text-[11px] text-blue-200">Tệp học liệu đính kèm</p>
+            <p className="text-xl font-black mt-0.5 text-cyan-300">{stats.totalAttachments} tệp</p>
+          </div>
+          <div className="bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/15 col-span-2 sm:col-span-1">
+            <p className="text-[11px] text-blue-200">Học sinh biểu dương</p>
             <p className="text-xl font-black mt-0.5 text-purple-200">{stats.allCommended} em</p>
           </div>
         </div>
@@ -566,6 +718,46 @@ export const ClassActivitiesView: React.FC = () => {
                           </span>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Attachment Summary Bar on Card */}
+                  {act.attachments && act.attachments.length > 0 && (
+                    <div className="p-2.5 rounded-xl bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border border-blue-200/80 flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-[#064A87] font-semibold flex-wrap">
+                        <Paperclip className="w-3.5 h-3.5 text-[#0878D1] shrink-0" />
+                        <span>{act.attachments.length} tệp đính kèm:</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {act.attachments.filter((a) => a.fileType === 'word').length > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">
+                              {act.attachments.filter((a) => a.fileType === 'word').length} Word
+                            </span>
+                          )}
+                          {act.attachments.filter((a) => a.fileType === 'excel').length > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                              {act.attachments.filter((a) => a.fileType === 'excel').length} Excel
+                            </span>
+                          )}
+                          {act.attachments.filter((a) => a.fileType === 'html').length > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
+                              {act.attachments.filter((a) => a.fileType === 'html').length} HTML
+                            </span>
+                          )}
+                          {act.attachments.filter((a) => a.fileType === 'video').length > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-bold">
+                              {act.attachments.filter((a) => a.fileType === 'video').length} MP4
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDetailActivity(act)}
+                        className="text-[#0878D1] hover:text-[#064A87] font-bold text-[10px] flex items-center gap-0.5 ml-auto cursor-pointer"
+                      >
+                        <span>Tải / Xem</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -829,6 +1021,126 @@ export const ClassActivitiesView: React.FC = () => {
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Đã gắn video thành công. Trình phát sẽ tự động hiển thị trên bài viết.</span>
                     </p>
+                  </div>
+                )}
+              </div>
+
+              {/* ATTACHMENTS SECTION: Word, Excel, HTML, Video MP4 */}
+              <div className="p-3.5 bg-gradient-to-br from-blue-50/70 to-indigo-50/60 rounded-2xl border border-blue-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <span className="font-bold text-[#064A87] flex items-center gap-1.5">
+                    <Paperclip className="w-4 h-4 text-[#0878D1]" />
+                    <span>Đính kèm tệp Word, Excel, HTML, Video MP4 ({formAttachments.length} tệp)</span>
+                  </span>
+                  <div className="flex items-center gap-1 text-[10px] text-gray-500 font-semibold">
+                    <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">.docx</span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">.xlsx</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">.html</span>
+                    <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">.mp4</span>
+                  </div>
+                </div>
+
+                {/* Upload Trigger Area */}
+                <label className="flex flex-col items-center justify-center p-3.5 bg-white border-2 border-dashed border-blue-300 hover:border-[#0878D1] rounded-xl cursor-pointer hover:bg-blue-50/40 transition-colors text-center group">
+                  <div className="flex items-center gap-2 text-[#0878D1] font-semibold">
+                    <Upload className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    <span>Bấm để chọn tệp từ máy tính hoặc kéo thả vào đây</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Chọn được nhiều tệp cùng lúc: Giáo án Word (.doc, .docx), Bảng điểm Excel (.xls, .xlsx, .csv), Báo cáo web HTML (.html), Video phóng sự (.mp4)
+                  </p>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".doc,.docx,.xls,.xlsx,.csv,.html,.htm,.mp4,video/mp4,video/*,.pdf"
+                    onChange={handleAttachmentFilesChange}
+                    className="hidden"
+                  />
+                </label>
+
+                {isProcessingAttachments && (
+                  <p className="text-center text-[11px] text-blue-600 font-semibold py-1 animate-pulse">
+                    Đang nạp và mã hóa tệp đính kèm...
+                  </p>
+                )}
+
+                {/* List of attachments in the form */}
+                {formAttachments.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <p className="text-[11px] font-bold text-gray-700">Danh sách tệp đã chọn:</p>
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {formAttachments.map((att) => {
+                        const badge = getAttachmentBadge(att.fileType);
+                        const IconComp = badge.icon;
+                        return (
+                          <div
+                            key={att.id}
+                            className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-200 shadow-xs gap-2"
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className={`p-1.5 rounded-lg shrink-0 ${badge.bgLight}`}>
+                                <IconComp className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${badge.badgeColor}`}>
+                                    {badge.shortLabel}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400">{formatFileSize(att.size)}</span>
+                                </div>
+                                <p className="font-semibold text-gray-800 text-xs truncate" title={att.name}>
+                                  {att.name}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {att.fileType === 'html' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingHtmlAttachment(att)}
+                                  className="px-2 py-1 text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold rounded-lg flex items-center gap-1 cursor-pointer"
+                                  title="Xem thử trang HTML"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>Xem thử</span>
+                                </button>
+                              )}
+
+                              {att.fileType === 'video' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingVideoModal({ url: att.urlOrData, title: att.name })}
+                                  className="px-2 py-1 text-[10px] bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold rounded-lg flex items-center gap-1 cursor-pointer"
+                                  title="Phát thử video"
+                                >
+                                  <Play className="w-3 h-3" />
+                                  <span>Phát thử</span>
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadAttachment(att)}
+                                className="p-1.5 hover:bg-blue-50 text-gray-400 hover:text-[#0878D1] rounded-lg transition-colors cursor-pointer"
+                                title="Tải thử về máy"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAttachment(att.id)}
+                                className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                title="Gỡ tệp này"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1176,6 +1488,91 @@ export const ClassActivitiesView: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* ATTACHMENTS SHOWCASE IN DETAIL MODAL */}
+              {selectedDetailActivity.attachments && selectedDetailActivity.attachments.length > 0 && (
+                <div className="p-4 bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-slate-50 rounded-2xl border border-blue-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <h4 className="font-bold text-[#064A87] flex items-center gap-1.5 text-xs sm:text-sm">
+                      <Paperclip className="w-4 h-4 text-[#0878D1]" />
+                      <span>Tài liệu & Video minh chứng đính kèm ({selectedDetailActivity.attachments.length} tệp)</span>
+                    </h4>
+                    <span className="text-[10px] text-gray-500">
+                      Tải về Word, Excel, xem trực tiếp HTML & phát video MP4
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {selectedDetailActivity.attachments.map((att) => {
+                      const badge = getAttachmentBadge(att.fileType);
+                      const IconComp = badge.icon;
+                      return (
+                        <div
+                          key={att.id}
+                          className={`p-3 bg-white rounded-xl border border-blue-100/80 shadow-xs flex flex-col justify-between gap-2.5 transition-all ${badge.borderHover}`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div className={`p-2 rounded-xl shrink-0 ${badge.bgLight}`}>
+                              <IconComp className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${badge.badgeColor}`}>
+                                  {badge.label}
+                                </span>
+                                <span className="text-[10px] text-gray-400 font-medium">
+                                  {formatFileSize(att.size)}
+                                </span>
+                              </div>
+                              <p className="font-bold text-gray-800 text-xs truncate" title={att.name}>
+                                {att.name}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                Cập nhật: {att.uploadedAt}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Quick action buttons */}
+                          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                            {att.fileType === 'html' && (
+                              <button
+                                type="button"
+                                onClick={() => setViewingHtmlAttachment(att)}
+                                className="flex-1 py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-[11px]"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Xem trực tiếp</span>
+                              </button>
+                            )}
+
+                            {att.fileType === 'video' && (
+                              <button
+                                type="button"
+                                onClick={() => setViewingVideoModal({ url: att.urlOrData, title: att.name })}
+                                className="flex-1 py-1.5 px-2 bg-purple-50 hover:bg-purple-100 text-purple-800 font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-[11px]"
+                              >
+                                <Play className="w-3.5 h-3.5" />
+                                <span>Phát video</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadAttachment(att)}
+                              className="flex-1 py-1.5 px-2 bg-blue-50 hover:bg-blue-100 text-[#064A87] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-[11px]"
+                              title={`Tải tệp ${att.name} về máy`}
+                            >
+                              <Download className="w-3.5 h-3.5 text-[#0878D1]" />
+                              <span>Tải về máy</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t border-gray-100 mt-5">
@@ -1193,6 +1590,97 @@ export const ClassActivitiesView: React.FC = () => {
               >
                 Đóng
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: XEM TRỰC TIẾP TÀI LIỆU WEB HTML TƯƠNG TÁC (SANDBOX IFRAME)      */}
+      {/* ========================================================================= */}
+      {viewingHtmlAttachment && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white rounded-3xl w-full max-w-4xl h-[88vh] flex flex-col shadow-2xl overflow-hidden border border-amber-200">
+            {/* Header */}
+            <div className="px-5 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Globe className="w-5 h-5 text-amber-100 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="font-bold text-sm truncate">
+                    Xem trực tiếp HTML: {viewingHtmlAttachment.name}
+                  </h3>
+                  <p className="text-[10px] text-amber-100">
+                    Môi trường hiển thị trực quan an toàn cho báo cáo web & mô hình toán học của học sinh
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadAttachment(viewingHtmlAttachment)}
+                  className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Tải file gốc</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingHtmlAttachment(null)}
+                  className="p-1.5 rounded-lg hover:bg-white/20 text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Iframe sandbox content */}
+            <div className="flex-1 w-full bg-slate-900 p-1">
+              <iframe
+                title={viewingHtmlAttachment.name}
+                srcDoc={viewingHtmlAttachment.previewContent || viewingHtmlAttachment.urlOrData}
+                sandbox="allow-scripts allow-same-origin"
+                className="w-full h-full bg-white rounded-2xl border-0 shadow-inner"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: PHÁT VIDEO ĐÍNH KÈM (MP4)                                        */}
+      {/* ========================================================================= */}
+      {viewingVideoModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-gray-700 flex flex-col">
+            <div className="px-5 py-3.5 bg-gray-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <Film className="w-4 h-4 text-purple-400 shrink-0" />
+                <h3 className="font-bold text-xs sm:text-sm truncate">
+                  {viewingVideoModal.title}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadFile(viewingVideoModal.url, viewingVideoModal.title)}
+                  className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Tải video</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingVideoModal(null)}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3 bg-black flex items-center justify-center aspect-video">
+              {renderVideoPlayer(viewingVideoModal.url, viewingVideoModal.title)}
             </div>
           </div>
         </div>

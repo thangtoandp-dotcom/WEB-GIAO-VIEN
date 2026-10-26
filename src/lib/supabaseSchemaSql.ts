@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS public.grade_records (
   tx1 NUMERIC,
   tx2 NUMERIC,
   tx3 NUMERIC,
+  tx4 NUMERIC,
   gk NUMERIC,
   ck NUMERIC,
   avg_score NUMERIC DEFAULT 0,
@@ -194,6 +195,7 @@ CREATE TABLE IF NOT EXISTS public.class_activities (
   is_pinned BOOLEAN DEFAULT false,
   author TEXT,
   created_date TEXT,
+  attachments JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -418,7 +418,7 @@ export const OnlineExamView: React.FC = () => {
                   Đã hoàn thành bài kiểm tra!
                 </h4>
                 <p className="text-sm text-gray-600 mt-1">
-                  Bài làm của em đã được ghi nhận trên hệ thống Toán học cùng thầy Thắng.
+                  Bài làm của em đã được ghi nhận trên hệ thống WEB QUẢN TRỊ LỚP HỌC.
                 </p>
               </div>
 
